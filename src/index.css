@@ -1,0 +1,109 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-display: "Outfit", sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
+
+  /* Custom palette of 'Espaço Aprender a Ser' Layout (Instagram Highlights & Logo) */
+  --color-brand-green-light: #f0f6fc;
+  --color-brand-green: #1070ca;       /* Main Brand Blue */
+  --color-brand-green-dark: #0b5194;
+  
+  --color-brand-blue-light: #f0f6fc;
+  --color-brand-blue: #1070ca;        /* Main Brand Blue */
+  --color-brand-blue-dark: #0b5194;
+
+  --color-brand-pink-light: #fdf2f7;
+  --color-brand-pink: #d43f72;        /* Brand Magenta/Pink */
+  --color-brand-pink-dark: #a12b53;
+
+  --color-brand-yellow-light: #fefcf0;
+  --color-brand-yellow: #ebb448;      /* Brand Honey Yellow */
+  --color-brand-yellow-dark: #b8852c;
+
+  --color-brand-sand-light: #faf8f5;  /* Super soft cream-white clinical bg */
+  --color-brand-sand: #e6ded3;
+  --color-brand-sand-dark: #8c8172;
+
+  /* Remap emerald green classes to our Brand Blue to change the entire app core accent */
+  --color-emerald-50: #f0f6fc;
+  --color-emerald-100: #e0f0fe;
+  --color-emerald-200: #badcfe;
+  --color-emerald-300: #7cc0fc;
+  --color-emerald-400: #389df6;
+  --color-emerald-500: #1070ca;
+  --color-emerald-600: #1070ca;       /* Custom Brand Blue */
+  --color-emerald-700: #0b5194;
+  --color-emerald-800: #0c437a;
+  --color-emerald-900: #0d3862;
+  --color-emerald-950: #061c33;
+
+  /* Overwrite default blue colors with our Brand Blue for unity */
+  --color-blue-50: #f0f6fc;
+  --color-blue-100: #e0f0fe;
+  --color-blue-200: #badcfe;
+  --color-blue-500: #1070ca;
+  --color-blue-600: #1070ca;
+  --color-blue-700: #0b5194;
+  --color-blue-800: #0c437a;
+
+  /* Overwrite pink and rose colors with our Brand Pink for unity */
+  --color-pink-50: #fdf2f7;
+  --color-pink-100: #fce7f3;
+  --color-pink-500: #d43f72;
+  --color-pink-600: #d43f72;
+  --color-pink-700: #a12b53;
+
+  --color-rose-50: #fdf2f7;
+  --color-rose-100: #ffe4e6;
+  --color-rose-500: #d43f72;
+  --color-rose-600: #d43f72;
+  --color-rose-700: #a12b53;
+
+  /* Overwrite amber and yellow with our beautiful honey brand yellow */
+  --color-amber-50: #fefcf0;
+  --color-amber-100: #fef3c7;
+  --color-amber-200: #fde68a;
+  --color-amber-500: #ebb448;
+  --color-amber-600: #ebb448;
+  --color-amber-700: #b8852c;
+  --color-amber-800: #92400e;
+  --color-amber-900: #78350f;
+}
+
+/* Print Styling for Clinical Reports and Protocols */
+@media print {
+  body {
+    background: white !important;
+    color: black !important;
+  }
+  .no-print {
+    display: none !important;
+  }
+  .print-page {
+    width: 100% !important;
+    max-width: 100% !important;
+    margin: 0 !important;
+    padding: 2cm !important;
+    box-shadow: none !important;
+    background: transparent !important;
+  }
+}
+
+/* Animations and transitions helpers */
+.animate-fade-in {
+  animation: fadeIn 0.4s ease-out forwards;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}

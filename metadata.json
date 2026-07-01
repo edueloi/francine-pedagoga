@@ -1,0 +1,6 @@
+{
+  "name": "Espaço Aprender a Ser",
+  "description": "Sistema completo para gestão psicopedagógica, neuropsicopedagógica e intervenção com estratégias baseadas em ABA, integrado com Inteligência Artificial.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
