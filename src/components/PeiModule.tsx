@@ -1,7 +1,8 @@
 import React, { useState } from "react";
 import { Save, Plus, Target, CheckCircle2, ChevronRight, Award, Trash2, ShieldAlert } from "lucide-react";
 import { Patient, PeiGoal, GoalDomain, GoalStatus, UserRole, UserPermissions } from "../types";
-import { initialPeiGoals } from "../mockData";
+import { usePeiGoals } from "../hooks/usePeiGoals";
+import { ConfirmModal, useToast } from "./UI";
 
 interface PeiModuleProps {
   patients: Patient[];
@@ -10,24 +11,28 @@ interface PeiModuleProps {
 }
 
 export default function PeiModule({ patients, userRole, userPermissions }: PeiModuleProps) {
+  const toast = useToast();
   const canCreate = userPermissions ? userPermissions.pei.criar : (userRole !== UserRole.RESTRICTED);
   const canDelete = userPermissions ? userPermissions.pei.excluir : (userRole === UserRole.ADMIN);
 
   const [selectedPatId, setSelectedPatId] = useState<string>(patients[0]?.id || "");
-  const [goals, setGoals] = useState<PeiGoal[]>(initialPeiGoals);
-  
+  const { goals, loading, error, createGoal, updateGoal, deleteGoal } = usePeiGoals();
+
   // Custom goal additions state
   const [newMeta, setNewMeta] = useState("");
   const [newDominio, setNewDominio] = useState<GoalDomain>(GoalDomain.ACADEMIC);
   const [newSuporte, setNewSuporte] = useState("Pistas visuais estruturadas");
   const [newTentativas, setNewTentativas] = useState("80% de acerto em 3 sessões consecutivas");
 
-  const handleCreateGoal = (e: React.FormEvent) => {
+  // Delete confirmation state
+  const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
+  const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
+
+  const handleCreateGoal = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newMeta.trim()) return;
 
-    const newGoal: PeiGoal = {
-      id: `goal-${Date.now()}`,
+    const newGoal: Partial<PeiGoal> = {
       patientId: selectedPatId,
       dominio: newDominio,
       meta: newMeta,
@@ -37,30 +42,44 @@ export default function PeiModule({ patients, userRole, userPermissions }: PeiMo
       dataRevisao: new Date(Date.now() + 60 * 24 * 60 * 60 * 1000).toISOString().split("T")[0] // 60 days renewal
     };
 
-    setGoals([...goals, newGoal]);
-    setNewMeta("");
-    setNewSuporte("");
-    setNewTentativas("");
+    try {
+      await createGoal(newGoal);
+      setNewMeta("");
+      setNewSuporte("");
+      setNewTentativas("");
+    } catch (err: any) {
+      toast.error(err.message || "Falha ao criar meta do PEI.");
+    }
   };
 
-  const handleUpdateStatus = (goalId: string, status: GoalStatus) => {
-    const updated = goals.map(g => {
-      if (g.id === goalId) {
-        return { ...g, status };
-      }
-      return g;
-    });
-    setGoals(updated);
+  const handleUpdateStatus = async (goalId: string, status: GoalStatus) => {
+    const goal = goals.find(g => g.id === goalId);
+    if (!goal) return;
+    try {
+      await updateGoal(goalId, { ...goal, status });
+    } catch (err: any) {
+      toast.error(err.message || "Falha ao atualizar status da meta.");
+    }
   };
 
   const handleDeleteGoal = (goalId: string) => {
-    if (confirm("Deseja realmente remover esta meta de aprendizado do PEI?")) {
-      setGoals(goals.filter(g => g.id !== goalId));
+    setPendingDeleteId(goalId);
+    setConfirmDeleteOpen(true);
+  };
+
+  const handleConfirmDeleteGoal = async () => {
+    if (!pendingDeleteId) return;
+    try {
+      await deleteGoal(pendingDeleteId);
+      setConfirmDeleteOpen(false);
+      setPendingDeleteId(null);
+    } catch (err: any) {
+      toast.error(err.message || "Falha ao remover meta do PEI.");
     }
   };
 
   // Instant Clinical Catalog Suggestion Generator (No External API, Instant & Secure)
-  const handleGenerateClinicalSuggestions = () => {
+  const handleGenerateClinicalSuggestions = async () => {
     const pat = patients.find(p => p.id === selectedPatId);
     if (!pat) return;
 
@@ -139,8 +158,7 @@ export default function PeiModule({ patients, userRole, userPermissions }: PeiMo
       ];
     }
 
-    const formattedGoals: PeiGoal[] = catalog.map((g, idx) => ({
-      id: `goal-auto-${Date.now()}-${idx}`,
+    const formattedGoals: Partial<PeiGoal>[] = catalog.map((g) => ({
       patientId: selectedPatId,
       dominio: g.dominio as GoalDomain,
       meta: g.meta,
@@ -150,8 +168,14 @@ export default function PeiModule({ patients, userRole, userPermissions }: PeiMo
       dataRevisao: new Date(Date.now() + 90 * 24 * 60 * 60 * 1000).toISOString().split("T")[0]
     }));
 
-    setGoals([...formattedGoals, ...goals]);
-    alert(`Metas estruturadas (ABA) sugeridas clinicamente com sucesso para ${pat.nome}!`);
+    try {
+      for (const g of formattedGoals) {
+        await createGoal(g);
+      }
+      toast.success(`Metas estruturadas (ABA) sugeridas clinicamente com sucesso para ${pat.nome}!`);
+    } catch (err: any) {
+      toast.error(err.message || "Falha ao sugerir metas clínicas.");
+    }
   };
 
   const selectedPatient = patients.find(p => p.id === selectedPatId);
@@ -170,6 +194,17 @@ export default function PeiModule({ patients, userRole, userPermissions }: PeiMo
         </h2>
         <p className="text-xs text-gray-500">Desenvolva planos de desenvolvimento focados, estabeleça metas comportamentais ABA e acompanhe métricas de evolução real do paciente.</p>
       </div>
+
+      {loading && (
+        <div className="p-3 bg-blue-50/50 border border-blue-100 rounded-2xl text-xs text-slate-600 font-medium">
+          Carregando metas do PEI...
+        </div>
+      )}
+      {error && (
+        <div className="p-3 bg-red-50 border border-red-200 rounded-2xl text-xs text-red-700 font-bold">
+          {error}
+        </div>
+      )}
 
       <div className="grid lg:grid-cols-12 gap-6">
         {/* Left Side: Goal Setup & Progress KPI */}
@@ -366,6 +401,16 @@ export default function PeiModule({ patients, userRole, userPermissions }: PeiMo
           </div>
         </div>
       </div>
+
+      <ConfirmModal
+        isOpen={confirmDeleteOpen}
+        onClose={() => setConfirmDeleteOpen(false)}
+        onConfirm={handleConfirmDeleteGoal}
+        title="Remover meta do PEI?"
+        message="Esta meta de aprendizado será removida permanentemente do Plano Educacional Individualizado do paciente. Esta ação não pode ser desfeita."
+        confirmLabel="Remover"
+        variant="danger"
+      />
     </div>
   );
 }

@@ -1,31 +1,43 @@
 import React, { useState } from "react";
-import { 
-  Shield, 
-  Database, 
-  Download, 
-  RefreshCw, 
-  Filter, 
-  Trash2, 
-  Users, 
-  UserPlus, 
-  Key, 
-  Check, 
-  X, 
-  Lock, 
-  Edit3, 
-  Settings2, 
-  CheckSquare, 
+import {
+  Shield,
+  Database,
+  Download,
+  RefreshCw,
+  Filter,
+  Trash2,
+  Users,
+  UserPlus,
+  Key,
+  Check,
+  X,
+  Lock,
+  Edit3,
+  Settings2,
+  CheckSquare,
   Square,
   AlertTriangle,
-  UserCheck
+  UserCheck,
+  MessageCircle,
+  QrCode,
+  Send
 } from "lucide-react";
 import { AuditLog, UserRole, SystemUser, UserPermissions, ModulePermission } from "../types";
-import { initialAuditLogs } from "../mockData";
+import { useAuditLogs } from "../hooks/useAuditLogs";
+import { useAuth } from "../contexts/AuthContext";
+import { useWhatsapp } from "../hooks/useWhatsapp";
+import { useToast, ConfirmModal } from "./UI";
+import { WhatsappTemplatesEditor } from "./WhatsappTemplatesEditor";
 
 interface AuditLogModuleProps {
   userRole: UserRole;
   users: SystemUser[];
-  onUpdateUsers: (updated: SystemUser[]) => void;
+  onCreateUser: (payload: { name: string; email: string; password: string; role: string }) => Promise<void>;
+  onUpdateUser: (
+    id: string,
+    payload: { name: string; email: string; role: string; active: boolean; password?: string }
+  ) => Promise<void>;
+  onDeleteUser: (id: string) => Promise<void>;
   rolePermissions: Record<UserRole, UserPermissions>;
   onUpdateRolePermissions: (updated: Record<UserRole, UserPermissions>) => void;
   userPermissions: UserPermissions;
@@ -46,15 +58,26 @@ const MODULES_INFO = [
 export default function AuditLogModule({
   userRole,
   users,
-  onUpdateUsers,
+  onCreateUser,
+  onUpdateUser,
+  onDeleteUser,
   rolePermissions,
   onUpdateRolePermissions,
   userPermissions
 }: AuditLogModuleProps) {
-  const [activeSubTab, setActiveSubTab] = useState<"users" | "matrix" | "logs">("users");
-  const [logs, setLogs] = useState<any[]>(initialAuditLogs);
+  const { user: authUser } = useAuth();
+  const [activeSubTab, setActiveSubTab] = useState<"users" | "matrix" | "logs" | "integrations">("users");
+  const { logs, loading: logsLoading, error: logsError, createLog } = useAuditLogs();
+  const whatsapp = useWhatsapp();
+  const toast = useToast();
   const [roleFilter, setRoleFilter] = useState("todos");
   const [isBackingUp, setIsBackingUp] = useState(false);
+  const [isSavingUser, setIsSavingUser] = useState(false);
+
+  // Confirm modals state
+  const [confirmDisconnectOpen, setConfirmDisconnectOpen] = useState(false);
+  const [confirmDeleteUserOpen, setConfirmDeleteUserOpen] = useState(false);
+  const [pendingDeleteUser, setPendingDeleteUser] = useState<{ id: string; name: string } | null>(null);
 
   // New User Form State
   const [showAddForm, setShowAddForm] = useState(false);
@@ -82,9 +105,28 @@ export default function AuditLogModule({
   });
 
   const filteredLogs = logs.filter(log => {
-    const logRole = log.role || log.perfil;
-    return roleFilter === "todos" || logRole === roleFilter;
+    return roleFilter === "todos" || log.perfil === roleFilter;
   });
+
+  const handleWhatsappConnect = async () => {
+    try {
+      await whatsapp.connect();
+      toast.info("Escaneie o QR Code com o WhatsApp da clínica para concluir a conexão.");
+    } catch (err: any) {
+      toast.error(err.message || "Falha ao iniciar conexão com o WhatsApp.");
+    }
+  };
+
+  const handleWhatsappDisconnect = async () => {
+    try {
+      await whatsapp.disconnect();
+      toast.success("WhatsApp desconectado com sucesso.");
+    } catch (err: any) {
+      toast.error(err.message || "Falha ao desconectar o WhatsApp.");
+    } finally {
+      setConfirmDisconnectOpen(false);
+    }
+  };
 
   const handleTriggerBackup = () => {
     setIsBackingUp(true);
@@ -97,80 +139,77 @@ export default function AuditLogModule({
       document.body.appendChild(downloadAnchor);
       downloadAnchor.click();
       downloadAnchor.remove();
-      alert("Backup de dados clínicos baixado de forma criptografada com sucesso (Padrão de Segurança HIPAA/LGPD).");
+      toast.success("Backup de dados clínicos baixado de forma criptografada com sucesso (Padrão de Segurança HIPAA/LGPD).");
     }, 1500);
   };
 
-  // Roles permissions matrix operations
-  const handleToggleRolePermission = (role: UserRole, moduleKey: keyof UserPermissions, action: keyof ModulePermission) => {
+  // Roles permissions matrix operations.
+  // NOTE: rolePermissions/onUpdateRolePermissions remain an in-memory-per-session
+  // matrix (sourced from src/lib/permissions.ts defaults via App.tsx) — there is no
+  // backend table for this yet, matching the original plan.
+  const handleToggleRolePermission = async (role: UserRole, moduleKey: keyof UserPermissions, action: keyof ModulePermission) => {
     const updatedRolePerms = { ...rolePermissions };
     const currentModulePerm = { ...updatedRolePerms[role][moduleKey] };
     currentModulePerm[action] = !currentModulePerm[action];
-    
+
     updatedRolePerms[role] = {
       ...updatedRolePerms[role],
       [moduleKey]: currentModulePerm
     };
-    
+
     onUpdateRolePermissions(updatedRolePerms);
 
-    // Register Audit Log
-    const newLog = {
-      id: `log-${Date.now()}`,
-      data: new Date().toISOString().replace("T", " ").substring(0, 19),
-      usuario: "Administrador Geral",
-      role: UserRole.ADMIN,
-      descricao: `Alterou as permissões do perfil [${role}]: Módulo [${moduleKey}] - Ação [${action}] para ${currentModulePerm[action] ? "HABILITADO" : "DESABILITADO"}`,
-      ipAddress: "192.168.1.100"
-    };
-    setLogs([newLog, ...logs]);
+    // Register Audit Log (persisted)
+    try {
+      await createLog({
+        usuario: authUser?.name || "Administrador Geral",
+        perfil: UserRole.ADMIN,
+        acao: "Alteração de permissões",
+        detalhes: `Alterou as permissões do perfil [${role}]: Módulo [${moduleKey}] - Ação [${action}] para ${currentModulePerm[action] ? "HABILITADO" : "DESABILITADO"}`,
+        ipSimulado: "192.168.1.100"
+      });
+    } catch {
+      // Non-fatal: permission change already applied in-memory even if audit log write fails.
+    }
   };
 
-  // User list operations
-  const handleSaveUser = (e: React.FormEvent) => {
+  // User list operations.
+  // NOTE: the backend `users` table/route does not persist per-user custom
+  // permissions or the free-text `desc` field (only name/email/password/role/active) —
+  // the granular permission checkboxes below remain a local-only UI preview in this pass.
+  const handleSaveUser = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!formName || !formEmail) {
-      alert("Por favor preencha todos os campos obrigatórios.");
+      toast.error("Por favor preencha todos os campos obrigatórios.");
       return;
     }
 
-    if (editingUserId) {
-      // Editing existing user
-      const updated = users.map(u => {
-        if (u.id === editingUserId) {
-          return {
-            ...u,
-            name: formName,
-            email: formEmail,
-            password: formPassword,
-            role: formRole,
-            status: formStatus,
-            desc: formDesc,
-            permissions: hasCustomPermissions ? customPerms : undefined
-          };
-        }
-        return u;
-      });
-      onUpdateUsers(updated);
-      alert(`Usuário ${formName} atualizado com sucesso!`);
-    } else {
-      // Creating new user
-      const newUser: SystemUser = {
-        id: `usr-${Date.now()}`,
-        name: formName,
-        email: formEmail,
-        password: formPassword,
-        role: formRole,
-        status: formStatus,
-        desc: formDesc || `Acesso de ${formRole}`,
-        permissions: hasCustomPermissions ? customPerms : undefined
-      };
-      onUpdateUsers([...users, newUser]);
-      alert(`Usuário ${formName} criado com sucesso! As credenciais de acesso já estão ativas para login.`);
+    setIsSavingUser(true);
+    try {
+      if (editingUserId) {
+        await onUpdateUser(editingUserId, {
+          name: formName,
+          email: formEmail,
+          role: formRole,
+          active: formStatus === "Ativo",
+          ...(formPassword ? { password: formPassword } : {}),
+        });
+        toast.success(`Usuário ${formName} atualizado com sucesso!`);
+      } else {
+        await onCreateUser({
+          name: formName,
+          email: formEmail,
+          password: formPassword,
+          role: formRole,
+        });
+        toast.success(`Usuário ${formName} criado com sucesso! As credenciais de acesso já estão ativas para login.`);
+      }
+      resetForm();
+    } catch (err: any) {
+      toast.error(err.message || "Falha ao salvar usuário.");
+    } finally {
+      setIsSavingUser(false);
     }
-
-    // Reset Form
-    resetForm();
   };
 
   const resetForm = () => {
@@ -178,7 +217,7 @@ export default function AuditLogModule({
     setEditingUserId(null);
     setFormName("");
     setFormEmail("");
-    setFormPassword("senha");
+    setFormPassword("");
     setFormRole(UserRole.PROFESSIONAL);
     setFormStatus("Ativo");
     setFormDesc("");
@@ -189,7 +228,7 @@ export default function AuditLogModule({
     setEditingUserId(u.id);
     setFormName(u.name);
     setFormEmail(u.email);
-    setFormPassword(u.password || "senha");
+    setFormPassword("");
     setFormRole(u.role);
     setFormStatus(u.status);
     setFormDesc(u.desc || "");
@@ -205,28 +244,34 @@ export default function AuditLogModule({
   };
 
   const handleDeleteUser = (userId: string, userName: string) => {
-    if (userId === "usr-2") {
-      alert("Você não pode excluir o Administrador Geral do sistema por motivos de segurança.");
-      return;
-    }
-    if (confirm(`Deseja realmente excluir o acesso do usuário "${userName}" permanentemente?`)) {
-      onUpdateUsers(users.filter(u => u.id !== userId));
+    setPendingDeleteUser({ id: userId, name: userName });
+    setConfirmDeleteUserOpen(true);
+  };
+
+  const handleConfirmDeleteUser = async () => {
+    if (!pendingDeleteUser) return;
+    try {
+      await onDeleteUser(pendingDeleteUser.id);
+    } catch (err: any) {
+      toast.error(err.message || "Falha ao remover usuário.");
+    } finally {
+      setConfirmDeleteUserOpen(false);
+      setPendingDeleteUser(null);
     }
   };
 
-  const handleToggleUserStatus = (u: SystemUser) => {
-    if (u.id === "usr-2") {
-      alert("Você não pode desativar o Administrador Geral.");
-      return;
+  const handleToggleUserStatus = async (u: SystemUser) => {
+    const newStatus = u.status === "Ativo" ? "Inativo" : "Ativo";
+    try {
+      await onUpdateUser(u.id, {
+        name: u.name,
+        email: u.email,
+        role: u.role,
+        active: newStatus === "Ativo",
+      });
+    } catch (err: any) {
+      toast.error(err.message || "Falha ao atualizar status do usuário.");
     }
-    const updated = users.map(user => {
-      if (user.id === u.id) {
-        const newStatus = user.status === "Ativo" ? "Inativo" : "Ativo";
-        return { ...user, status: newStatus as "Ativo" | "Inativo" };
-      }
-      return user;
-    });
-    onUpdateUsers(updated);
   };
 
   const handleToggleCustomUserPerm = (moduleKey: keyof UserPermissions, action: keyof ModulePermission) => {
@@ -278,12 +323,22 @@ export default function AuditLogModule({
         <button
           onClick={() => { setActiveSubTab("logs"); resetForm(); }}
           className={`px-5 py-3 text-xs font-black uppercase tracking-wider transition border-b-2 flex items-center gap-2 cursor-pointer ${
-            activeSubTab === "logs" 
-              ? "border-[#1070ca] text-[#1070ca]" 
+            activeSubTab === "logs"
+              ? "border-[#1070ca] text-[#1070ca]"
               : "border-transparent text-slate-400 hover:text-slate-700 hover:border-slate-200"
           }`}
         >
           <Shield className="h-4 w-4" /> Logs de Auditoria
+        </button>
+        <button
+          onClick={() => { setActiveSubTab("integrations"); resetForm(); }}
+          className={`px-5 py-3 text-xs font-black uppercase tracking-wider transition border-b-2 flex items-center gap-2 cursor-pointer ${
+            activeSubTab === "integrations"
+              ? "border-[#1070ca] text-[#1070ca]"
+              : "border-transparent text-slate-400 hover:text-slate-700 hover:border-slate-200"
+          }`}
+        >
+          <MessageCircle className="h-4 w-4" /> Integrações
         </button>
       </div>
 
@@ -431,13 +486,15 @@ export default function AuditLogModule({
                   </div>
 
                   <div>
-                    <label className="block text-[10px] font-black uppercase text-slate-400 tracking-wider mb-1">Senha Provisória *</label>
+                    <label className="block text-[10px] font-black uppercase text-slate-400 tracking-wider mb-1">
+                      {editingUserId ? "Nova Senha (opcional)" : "Senha Provisória *"}
+                    </label>
                     <input
                       type="password"
-                      required
+                      required={!editingUserId}
                       value={formPassword}
                       onChange={(e) => setFormPassword(e.target.value)}
-                      placeholder="Defina a senha"
+                      placeholder={editingUserId ? "Deixe em branco para manter a atual" : "Defina a senha"}
                       className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-xs font-semibold text-slate-700 focus:outline-none focus:ring-1 focus:ring-[#1070ca] focus:bg-white"
                     />
                   </div>
@@ -584,9 +641,10 @@ export default function AuditLogModule({
                   </button>
                   <button
                     type="submit"
-                    className="px-5 py-2 bg-[#d43f72] hover:bg-[#b02f5a] text-white rounded-xl text-xs font-black uppercase tracking-wider transition cursor-pointer shadow-xs"
+                    disabled={isSavingUser}
+                    className="px-5 py-2 bg-[#d43f72] hover:bg-[#b02f5a] disabled:opacity-60 disabled:cursor-not-allowed text-white rounded-xl text-xs font-black uppercase tracking-wider transition cursor-pointer shadow-xs"
                   >
-                    Salvar Usuário
+                    {isSavingUser ? "Salvando..." : "Salvar Usuário"}
                   </button>
                 </div>
               </form>
@@ -766,26 +824,136 @@ export default function AuditLogModule({
               </div>
 
               <div className="space-y-3 max-h-[500px] overflow-y-auto pr-2">
-                {filteredLogs.map((log) => {
-                  const logRole = log.role || log.perfil;
-                  const logIp = log.ipAddress || log.ipSimulado || "192.168.1.10";
-                  const logDesc = log.descricao || log.acao || "Acessou o sistema";
-                  return (
-                    <div key={log.id} className="p-4 bg-slate-50/50 border border-slate-100 rounded-2xl text-xs space-y-2 hover:border-[#1070ca]/30 transition duration-200">
-                      <div className="flex justify-between items-center text-[10px] text-slate-400 font-mono font-bold">
-                        <span>{log.data} • IP: {logIp}</span>
-                        <span className="bg-blue-100 text-[#1070ca] font-black px-2 py-0.5 rounded-md text-[9px] uppercase tracking-wide">{logRole}</span>
-                      </div>
-                      <p className="text-xs font-bold text-slate-800 leading-relaxed">{logDesc}</p>
-                      <p className="text-[10px] text-slate-400 font-mono font-semibold">Operador: {log.usuario}</p>
+                {logsLoading && (
+                  <p className="text-xs text-slate-400 text-center py-6">Carregando logs de auditoria...</p>
+                )}
+                {logsError && (
+                  <p className="text-xs text-red-600 font-bold text-center py-2">{logsError}</p>
+                )}
+                {!logsLoading && filteredLogs.map((log) => (
+                  <div key={log.id} className="p-4 bg-slate-50/50 border border-slate-100 rounded-2xl text-xs space-y-2 hover:border-[#1070ca]/30 transition duration-200">
+                    <div className="flex justify-between items-center text-[10px] text-slate-400 font-mono font-bold">
+                      <span>{log.data} • IP: {log.ipSimulado || "192.168.1.10"}</span>
+                      <span className="bg-blue-100 text-[#1070ca] font-black px-2 py-0.5 rounded-md text-[9px] uppercase tracking-wide">{log.perfil}</span>
                     </div>
-                  );
-                })}
+                    <p className="text-xs font-bold text-slate-800 leading-relaxed">{log.detalhes || log.acao}</p>
+                    <p className="text-[10px] text-slate-400 font-mono font-semibold">Operador: {log.usuario}</p>
+                  </div>
+                ))}
+
+                {!logsLoading && filteredLogs.length === 0 && (
+                  <p className="text-xs text-slate-400 text-center py-6">Nenhum log de auditoria registrado.</p>
+                )}
               </div>
             </div>
           </div>
         </div>
       )}
+
+      {/* TAB 4: INTEGRATIONS (Bot de WhatsApp + templates de mensagem) */}
+      {activeSubTab === "integrations" && (
+        <div className="grid lg:grid-cols-12 gap-8 animate-fade-in">
+          {/* Left: connection panel */}
+          <div className="lg:col-span-4 space-y-6">
+            <div className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm space-y-4">
+              <div className="flex items-center justify-between border-b border-slate-50 pb-2">
+                <h3 className="font-display font-black text-slate-900 text-sm uppercase tracking-wider flex items-center gap-2">
+                  <MessageCircle className="h-4.5 w-4.5 text-emerald-600" /> Bot de WhatsApp
+                </h3>
+                <span className={`text-[9px] font-black uppercase px-2 py-1 rounded-md border ${
+                  whatsapp.status === "connected"
+                    ? "bg-emerald-50 text-emerald-700 border-emerald-100"
+                    : whatsapp.status === "connecting"
+                    ? "bg-amber-50 text-amber-700 border-amber-100"
+                    : "bg-slate-50 text-slate-500 border-slate-100"
+                }`}>
+                  {whatsapp.status === "connected" ? "Conectado" : whatsapp.status === "connecting" ? "Conectando" : "Desconectado"}
+                </span>
+              </div>
+
+              <p className="text-xs text-slate-500 leading-relaxed font-medium">
+                Conecte o número de WhatsApp da clínica para enviar automaticamente lembretes de atendimento (24h e 1h antes) e mensagens de aniversário aos pacientes.
+              </p>
+
+              {whatsapp.status === "connected" && (
+                <div className="p-3 bg-emerald-50/60 border border-emerald-100 rounded-xl text-xs font-semibold text-emerald-800 flex items-center gap-2">
+                  <Check className="h-4 w-4 shrink-0" /> Número ativo: {whatsapp.phone || "—"}
+                </div>
+              )}
+
+              {whatsapp.status === "connecting" && whatsapp.qrCodeDataUrl && (
+                <div className="p-4 bg-slate-50/70 border border-slate-100 rounded-2xl flex flex-col items-center gap-2">
+                  <img src={whatsapp.qrCodeDataUrl} alt="QR Code do WhatsApp" className="w-40 h-40 rounded-lg border border-slate-200" />
+                  <p className="text-[10px] text-slate-500 font-semibold text-center flex items-center gap-1">
+                    <QrCode className="h-3.5 w-3.5" /> Abra o WhatsApp no celular da clínica e escaneie o código.
+                  </p>
+                </div>
+              )}
+
+              {whatsapp.status === "connecting" && !whatsapp.qrCodeDataUrl && (
+                <div className="p-3 bg-amber-50/60 border border-amber-100 rounded-xl text-xs font-semibold text-amber-800 flex items-center gap-2">
+                  <RefreshCw className="h-4 w-4 animate-spin shrink-0" /> Gerando QR Code...
+                </div>
+              )}
+
+              {whatsapp.status === "connected" ? (
+                <button
+                  onClick={() => setConfirmDisconnectOpen(true)}
+                  disabled={whatsapp.loading}
+                  className="w-full py-3 bg-white hover:bg-red-50 text-red-600 border border-red-100 font-black rounded-xl transition duration-200 flex items-center justify-center gap-2 cursor-pointer text-xs uppercase tracking-wider disabled:opacity-60"
+                >
+                  Desconectar
+                </button>
+              ) : (
+                <button
+                  onClick={handleWhatsappConnect}
+                  disabled={whatsapp.loading || whatsapp.status === "connecting"}
+                  className="w-full py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-black rounded-xl transition duration-200 shadow-sm flex items-center justify-center gap-2 cursor-pointer text-xs uppercase tracking-wider disabled:opacity-60"
+                >
+                  <Send className="h-4 w-4" /> Conectar
+                </button>
+              )}
+            </div>
+
+            <div className="bg-blue-50/30 p-4 rounded-3xl border border-blue-100/50 text-xs text-slate-600 space-y-1.5 font-medium leading-relaxed">
+              <h4 className="font-display font-black text-slate-900 text-xs flex items-center gap-1.5">💡 Como usar as variáveis</h4>
+              <p>
+                Clique em um dos badges acima de cada modelo (ex: "Nome do Paciente") para inserir a variável
+                correspondente no ponto do texto onde estiver o cursor. Elas serão substituídas automaticamente
+                pelos dados reais do paciente, atendimento ou guia de convênio no momento do envio.
+              </p>
+            </div>
+          </div>
+
+          {/* Right: editable message templates */}
+          <div className="lg:col-span-8">
+            <WhatsappTemplatesEditor />
+          </div>
+        </div>
+      )}
+
+      <ConfirmModal
+        isOpen={confirmDisconnectOpen}
+        onClose={() => setConfirmDisconnectOpen(false)}
+        onConfirm={handleWhatsappDisconnect}
+        title="Desconectar WhatsApp da clínica?"
+        message="Os lembretes automáticos deixarão de ser enviados aos pacientes. Você pode reconectar a qualquer momento."
+        confirmLabel="Desconectar"
+        cancelLabel="Cancelar"
+        variant="primary"
+        loading={whatsapp.loading}
+      />
+
+      <ConfirmModal
+        isOpen={confirmDeleteUserOpen}
+        onClose={() => { setConfirmDeleteUserOpen(false); setPendingDeleteUser(null); }}
+        onConfirm={handleConfirmDeleteUser}
+        title="Excluir acesso do usuário?"
+        message={`O acesso de "${pendingDeleteUser?.name}" será removido permanentemente. Esta ação não pode ser desfeita.`}
+        confirmLabel="Excluir"
+        cancelLabel="Cancelar"
+        variant="danger"
+      />
     </div>
   );
 }

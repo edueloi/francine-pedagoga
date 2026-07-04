@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { 
   FileText, 
   Save, 
@@ -24,7 +24,8 @@ import {
   ClipboardList
 } from "lucide-react";
 import { Patient, Protocol, ProtocolType, UserRole, UserPermissions } from "../types";
-import { initialProtocols } from "../mockData";
+import { useProtocols } from "../hooks/useProtocols";
+import { useToast, ConfirmModal } from "./UI";
 
 interface ProtocolsModuleProps {
   patients: Patient[];
@@ -33,16 +34,17 @@ interface ProtocolsModuleProps {
 }
 
 export default function ProtocolsModule({ patients, userRole, userPermissions }: ProtocolsModuleProps) {
+  const toast = useToast();
   const canCreate = userPermissions ? userPermissions.protocols.criar : (userRole !== UserRole.RESTRICTED);
   const canDelete = userPermissions ? userPermissions.protocols.excluir : (userRole === UserRole.ADMIN);
 
-  const [protocols, setProtocols] = useState<Protocol[]>(initialProtocols);
+  const { protocols, loading, error, createProtocol, deleteProtocol } = useProtocols();
   const [selectedPatId, setSelectedPatId] = useState<string>(patients[0]?.id || "");
   const [selectedProtoType, setSelectedProtoType] = useState<ProtocolType>(ProtocolType.A);
-  
+
   // Workspace states: 'view' (reading active protocol) or 'create' (filling new one)
   const [workspaceMode, setWorkspaceMode] = useState<"view" | "create">("create");
-  const [activeProto, setActiveProto] = useState<Protocol | null>(initialProtocols[0] || null);
+  const [activeProto, setActiveProto] = useState<Protocol | null>(null);
   const [isViewingPrint, setIsViewingPrint] = useState(false);
 
   // Filter historical protocols by type
@@ -52,6 +54,21 @@ export default function ProtocolsModule({ patients, userRole, userPermissions }:
   const [formContent, setFormContent] = useState<Record<string, any>>({});
   const [formObs, setFormObs] = useState("");
 
+  // Delete confirmation flow
+  const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
+  const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
+
+  // Once protocols load for the first time, default to viewing the first one for the selected patient.
+  useEffect(() => {
+    if (!activeProto && protocols.length > 0) {
+      const firstForPatient = protocols.find(p => p.patientId === selectedPatId) || protocols[0];
+      setActiveProto(firstForPatient);
+      setWorkspaceMode("view");
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [protocols]);
+
   const handleSelectProtocolType = (type: ProtocolType) => {
     setSelectedProtoType(type);
     setFormContent({});
@@ -59,7 +76,7 @@ export default function ProtocolsModule({ patients, userRole, userPermissions }:
     setWorkspaceMode("create");
   };
 
-  const handleSaveProtocol = (e: React.FormEvent) => {
+  const handleSaveProtocol = async (e: React.FormEvent) => {
     e.preventDefault();
     const pat = patients.find(p => p.id === selectedPatId);
     if (!pat) return;
@@ -86,8 +103,7 @@ export default function ProtocolsModule({ patients, userRole, userPermissions }:
       finalContent.estado_final = finalContent.estado_final || "Regulado e atento";
     }
 
-    const newProto: Protocol = {
-      id: `prot-${Date.now()}`,
+    const newProtoPayload: Partial<Protocol> = {
       patientId: selectedPatId,
       tipo: selectedProtoType,
       dataPreenchimento: new Date().toISOString().split("T")[0],
@@ -96,20 +112,40 @@ export default function ProtocolsModule({ patients, userRole, userPermissions }:
       observacoes: formObs
     };
 
-    setProtocols([newProto, ...protocols]);
-    setActiveProto(newProto);
-    setWorkspaceMode("view");
-    alert(`Protocolo digital salvo com sucesso na pasta de ${pat.nome}!`);
+    try {
+      const created = await createProtocol(newProtoPayload);
+      if (created) {
+        setActiveProto(created);
+        setWorkspaceMode("view");
+      }
+      toast.success(`Protocolo digital salvo com sucesso na pasta de ${pat.nome}!`);
+    } catch (err: any) {
+      toast.error(err.message || "Falha ao salvar protocolo.");
+    }
   };
 
   const handleDeleteProtocol = (id: string) => {
-    if (confirm("Deseja realmente remover este protocolo preenchido?")) {
-      const remaining = protocols.filter(p => p.id !== id);
-      setProtocols(remaining);
+    setPendingDeleteId(id);
+    setConfirmDeleteOpen(true);
+  };
+
+  const handleConfirmDeleteProtocol = async () => {
+    if (!pendingDeleteId) return;
+    const id = pendingDeleteId;
+    setIsDeleting(true);
+    try {
+      await deleteProtocol(id);
       if (activeProto?.id === id) {
+        const remaining = protocols.filter(p => p.id !== id);
         setActiveProto(remaining[0] || null);
         setWorkspaceMode(remaining.length > 0 ? "view" : "create");
       }
+      setConfirmDeleteOpen(false);
+      setPendingDeleteId(null);
+    } catch (err: any) {
+      toast.error(err.message || "Falha ao remover protocolo.");
+    } finally {
+      setIsDeleting(false);
     }
   };
 
@@ -135,7 +171,18 @@ export default function ProtocolsModule({ patients, userRole, userPermissions }:
 
   return (
     <div id="protocols-module" className="space-y-6">
-      
+
+      {loading && (
+        <div className="p-3 bg-blue-50/50 border border-blue-100 rounded-2xl text-xs text-slate-600 font-medium">
+          Carregando protocolos...
+        </div>
+      )}
+      {error && (
+        <div className="p-3 bg-red-50 border border-red-200 rounded-2xl text-xs text-red-700 font-bold">
+          {error}
+        </div>
+      )}
+
       {/* Visual print mode overlay if viewing printable sheet */}
       {isViewingPrint && activeProto && (
         <div className="fixed inset-0 z-50 bg-slate-900/80 backdrop-blur-xs overflow-y-auto p-4 sm:p-10 flex justify-center items-start">
@@ -408,7 +455,7 @@ export default function ProtocolsModule({ patients, userRole, userPermissions }:
                   if (activeProto) {
                     setWorkspaceMode("view");
                   } else {
-                    alert("Por favor, selecione ou crie um protocolo primeiro.");
+                    toast.warning("Por favor, selecione ou crie um protocolo primeiro.");
                   }
                 }}
                 className={`px-4 py-2 rounded-xl text-xs font-black uppercase tracking-wider transition flex items-center gap-1.5 cursor-pointer ${
@@ -1253,6 +1300,20 @@ export default function ProtocolsModule({ patients, userRole, userPermissions }:
         </div>
 
       </div>
+
+      <ConfirmModal
+        isOpen={confirmDeleteOpen}
+        onClose={() => {
+          setConfirmDeleteOpen(false);
+          setPendingDeleteId(null);
+        }}
+        onConfirm={handleConfirmDeleteProtocol}
+        title="Remover protocolo preenchido?"
+        message="Este protocolo será removido permanentemente do arquivo do paciente. Esta ação não pode ser desfeita."
+        confirmLabel="Remover"
+        variant="danger"
+        loading={isDeleting}
+      />
     </div>
   );
 }

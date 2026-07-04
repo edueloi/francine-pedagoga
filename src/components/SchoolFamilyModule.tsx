@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from "react";
 import { Sparkles, Save, BookOpen, UserCheck, CheckSquare, RefreshCw, Star, Heart, Check } from "lucide-react";
 import { Patient, UserRole, UserPermissions } from "../types";
+import { useTimeline } from "../hooks/useTimeline";
+import { useToast } from "./UI";
 
 interface SchoolFamilyModuleProps {
   patients: Patient[];
@@ -9,6 +11,7 @@ interface SchoolFamilyModuleProps {
 }
 
 export default function SchoolFamilyModule({ patients, userRole, userPermissions }: SchoolFamilyModuleProps) {
+  const toast = useToast();
   const canCreate = userPermissions ? userPermissions.schoolFamily.criar : (userRole !== UserRole.RESTRICTED);
   const canEdit = userPermissions ? userPermissions.schoolFamily.editar : (userRole !== UserRole.RESTRICTED);
 
@@ -18,16 +21,9 @@ export default function SchoolFamilyModule({ patients, userRole, userPermissions
   const [teacherName, setTeacherName] = useState("");
   const [visitResolution, setVisitResolution] = useState("");
 
-  const [visitLogs, setVisitLogs] = useState<any[]>([
-    {
-      id: "log-1",
-      patientId: "pat-1",
-      data: "2026-06-10",
-      profissional: "Francine Maria Tersi",
-      contato: "Profa. Letícia Neves (Colégio Integração)",
-      resolucao: "Acertado uso de abafador de ruídos na hora do recreio e início de rotina de painel visual na carteira do aluno."
-    }
-  ]);
+  // School/family contact logs are stored as timeline_items with tipo
+  // "Visita Escolar" / "Reunião de Família", scoped to the selected patient.
+  const { timeline: visitLogs, loading, error, addTimelineItem } = useTimeline(selectedPatId);
 
   const selectedPatient = patients.find(p => p.id === selectedPatId);
 
@@ -75,30 +71,34 @@ Diretora Técnica: Francine Maria Tersi`);
     setTimeout(() => {
       compileGuideline();
       setIsGenerating(false);
-      alert(`Diretrizes de apoio familiar geradas instantaneamente para ${selectedPatient?.nome}!`);
+      toast.success(`Diretrizes de apoio familiar geradas instantaneamente para ${selectedPatient?.nome}!`);
     }, 500);
   };
 
-  const handleSaveVisitLog = (e: React.FormEvent) => {
+  const handleSaveVisitLog = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!teacherName.trim()) return;
 
-    const newLog = {
-      id: `log-${Date.now()}`,
-      patientId: selectedPatId,
-      data: new Date().toISOString().split("T")[0],
-      profissional: "Francine Maria Tersi",
-      contato: teacherName,
-      resolucao: visitResolution || "Alinhamento de metas pedagógicas curriculares."
-    };
-
-    setVisitLogs([newLog, ...visitLogs]);
-    setTeacherName("");
-    setVisitResolution("");
-    alert("Contato de alinhamento escolar arquivado com sucesso na pasta do paciente.");
+    try {
+      await addTimelineItem({
+        patientId: selectedPatId,
+        data: new Date().toISOString().split("T")[0],
+        tipo: "Reunião de Família",
+        titulo: teacherName,
+        descricao: visitResolution || "Alinhamento de metas pedagógicas curriculares.",
+        profissional: "Francine Maria Tersi",
+      });
+      setTeacherName("");
+      setVisitResolution("");
+      toast.success("Contato de alinhamento escolar arquivado com sucesso na pasta do paciente.");
+    } catch (err: any) {
+      toast.error(err.message || "Falha ao salvar contato escolar.");
+    }
   };
 
-  const patientLogs = visitLogs.filter(log => log.patientId === selectedPatId);
+  const patientLogs = visitLogs.filter(
+    log => log.tipo === "Reunião de Família" || log.tipo === "Visita Escolar"
+  );
 
   return (
     <div id="school-family-module" className="space-y-6">
@@ -209,18 +209,24 @@ Diretora Técnica: Francine Maria Tersi`);
             </h3>
             
             <div className="space-y-3">
-              {patientLogs.map((log) => (
+              {loading && (
+                <p className="text-xs text-slate-400 text-center py-6">Carregando histórico...</p>
+              )}
+              {error && (
+                <p className="text-xs text-red-600 font-bold text-center py-2">{error}</p>
+              )}
+              {!loading && patientLogs.map((log) => (
                 <div key={log.id} className="p-4 bg-slate-50 border border-slate-100 rounded-2xl text-xs space-y-2 relative">
                   <div className="flex justify-between items-center">
-                    <span className="font-black text-slate-800">{log.contato}</span>
+                    <span className="font-black text-slate-800">{log.titulo}</span>
                     <span className="text-[10px] text-slate-400 font-mono font-bold">{log.data}</span>
                   </div>
-                  <p className="text-xs text-slate-600 font-medium leading-relaxed">{log.resolucao}</p>
+                  <p className="text-xs text-slate-600 font-medium leading-relaxed">{log.descricao}</p>
                   <p className="text-[9px] text-slate-400 font-mono font-semibold">Técnico Responsável: {log.profissional}</p>
                 </div>
               ))}
 
-              {patientLogs.length === 0 && (
+              {!loading && patientLogs.length === 0 && (
                 <p className="text-xs text-slate-400 text-center py-6">Nenhum registro de contato escolar para este paciente.</p>
               )}
             </div>

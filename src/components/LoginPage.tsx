@@ -1,45 +1,41 @@
 import React, { useState } from "react";
-import { Shield, Key, Mail, Lock, Heart, ArrowLeft, CheckCircle2, Sparkles, Smile, LayoutGrid, Award, BookOpen } from "lucide-react";
+import { Shield, Key, Mail, Lock, Heart, ArrowLeft, CheckCircle2, Sparkles, Smile, LayoutGrid, Award, BookOpen, Loader2, Eye, EyeOff } from "lucide-react";
 import { LogoSVG } from "./LandingPage";
-import { UserRole, SystemUser } from "../types";
+import { useAuth } from "../contexts/AuthContext";
 
 interface LoginPageProps {
-  onLoginSuccess: (role: UserRole, email: string, name: string) => void;
+  onLoginSuccess: () => void;
   onBackToLanding: () => void;
-  users: SystemUser[];
 }
 
-export default function LoginPage({ onLoginSuccess, onBackToLanding, users }: LoginPageProps) {
+export default function LoginPage({ onLoginSuccess, onBackToLanding }: LoginPageProps) {
+  const { login } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
   const [showRecover, setShowRecover] = useState(false);
   const [recoverEmail, setRecoverEmail] = useState("");
   const [recoverSent, setRecoverSent] = useState(false);
   const [lgpdAccepted, setLgpdAccepted] = useState(true);
 
-  const handleQuickSelect = (p: SystemUser) => {
-    setEmail(p.email);
-    setPassword(p.password || "senha");
-    setError("");
-  };
-
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!lgpdAccepted) {
       setError("Você precisa aceitar os termos de responsabilidade e LGPD para acessar.");
       return;
     }
 
-    const matched = users.find(p => p.email === email && p.password === password);
-    if (matched) {
-      if (matched.status === "Inativo") {
-        setError("Este acesso foi temporariamente bloqueado/desativado pela coordenação da clínica.");
-        return;
-      }
-      onLoginSuccess(matched.role, matched.email, matched.name);
-    } else {
-      setError("Credenciais inválidas para o ambiente de testes. Cadastre novos acessos ou use os botões rápidos abaixo.");
+    setError("");
+    setLoading(true);
+    try {
+      await login(email, password);
+      onLoginSuccess();
+    } catch (err: any) {
+      setError(err.message || "Credenciais inválidas.");
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -90,10 +86,10 @@ export default function LoginPage({ onLoginSuccess, onBackToLanding, users }: Lo
           {!showRecover ? (
             <form onSubmit={handleSubmit} className="space-y-4">
               
-              {/* E-mail Field */}
+              {/* Login Field */}
               <div className="space-y-1.5">
                 <label htmlFor="email" className="block text-[9px] font-black uppercase text-slate-400 tracking-wider">
-                  E-mail do Profissional
+                  Usuário ou E-mail
                 </label>
                 <div className="relative">
                   <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
@@ -101,12 +97,13 @@ export default function LoginPage({ onLoginSuccess, onBackToLanding, users }: Lo
                   </div>
                   <input
                     id="email"
-                    type="email"
+                    type="text"
+                    autoComplete="username"
                     required
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     className="block w-full pl-10 pr-3.5 py-3 bg-slate-50/60 border border-slate-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-[#1070ca]/20 focus:border-[#1070ca] focus:bg-white text-xs text-slate-700 font-semibold transition-all placeholder-slate-400"
-                    placeholder="exemplo@aprenderaser.com"
+                    placeholder="admin ou exemplo@aprenderaser.com"
                   />
                 </div>
               </div>
@@ -134,13 +131,22 @@ export default function LoginPage({ onLoginSuccess, onBackToLanding, users }: Lo
                   </div>
                   <input
                     id="pass"
-                    type="password"
+                    type={showPassword ? "text" : "password"}
+                    autoComplete="current-password"
                     required
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
-                    className="block w-full pl-10 pr-3.5 py-3 bg-slate-50/60 border border-slate-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-[#1070ca]/20 focus:border-[#1070ca] focus:bg-white text-xs text-slate-700 font-semibold transition-all placeholder-slate-400"
+                    className="block w-full pl-10 pr-10 py-3 bg-slate-50/60 border border-slate-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-[#1070ca]/20 focus:border-[#1070ca] focus:bg-white text-xs text-slate-700 font-semibold transition-all placeholder-slate-400"
                     placeholder="••••••••"
                   />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword((v) => !v)}
+                    aria-label={showPassword ? "Ocultar senha" : "Mostrar senha"}
+                    className="absolute inset-y-0 right-0 pr-3.5 flex items-center text-slate-400 hover:text-[#1070ca] transition-colors cursor-pointer"
+                  >
+                    {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  </button>
                 </div>
               </div>
 
@@ -168,9 +174,16 @@ export default function LoginPage({ onLoginSuccess, onBackToLanding, users }: Lo
               {/* Access Button */}
               <button
                 type="submit"
-                className="w-full py-3.5 bg-slate-900 hover:bg-[#1070ca] text-white rounded-full text-xs font-black uppercase tracking-wider transition-all duration-300 shadow-md shadow-slate-900/10 cursor-pointer flex items-center justify-center gap-1.5"
+                disabled={loading}
+                className="w-full py-3.5 bg-slate-900 hover:bg-[#1070ca] text-white rounded-full text-xs font-black uppercase tracking-wider transition-all duration-300 shadow-md shadow-slate-900/10 cursor-pointer flex items-center justify-center gap-1.5 disabled:opacity-60 disabled:cursor-not-allowed"
               >
-                Acessar Área Clínica
+                {loading ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin" /> Autenticando...
+                  </>
+                ) : (
+                  "Acessar Área Clínica"
+                )}
               </button>
             </form>
           ) : (
@@ -221,37 +234,12 @@ export default function LoginPage({ onLoginSuccess, onBackToLanding, users }: Lo
             </form>
           )}
 
-          {/* Quick Access Demo Profiler Selection */}
-          <div className="border-t border-slate-100 pt-5 space-y-3">
-            <div className="flex items-center gap-1.5 justify-center">
-              <Shield className="h-3.5 w-3.5 text-[#ebb448]" />
-              <h3 className="text-[9px] font-black uppercase tracking-widest text-slate-400 text-center font-mono">
-                Credenciais Rápidas (Acesso Demo)
-              </h3>
-            </div>
-            
-            <div className="grid grid-cols-2 gap-2">
-              {users.map((p, idx) => (
-                <button
-                  key={idx}
-                  type="button"
-                  onClick={() => handleQuickSelect(p)}
-                  className="text-left p-3 rounded-2xl border border-slate-100 hover:border-[#1070ca]/30 bg-slate-50/50 hover:bg-blue-50/25 transition flex flex-col justify-between h-[85px] shadow-3xs cursor-pointer group"
-                >
-                  <span className="text-[11px] font-black text-slate-800 group-hover:text-[#1070ca] transition-colors leading-tight block truncate">
-                    {p.name}
-                  </span>
-                  <div className="space-y-1">
-                    <span className="inline-block text-[8px] font-black text-[#1070ca] bg-blue-50 group-hover:bg-[#1070ca]/10 px-1.5 py-0.5 rounded font-mono leading-none uppercase">
-                      {p.role}
-                    </span>
-                    <span className="text-[8px] text-slate-400 font-bold uppercase tracking-wider block truncate font-mono">
-                      {p.role === UserRole.ADMIN ? "Direção Clínica" : "Terapeuta"}
-                    </span>
-                  </div>
-                </button>
-              ))}
-            </div>
+          {/* Security Footer Note */}
+          <div className="border-t border-slate-100 pt-5 flex items-center gap-1.5 justify-center">
+            <Shield className="h-3.5 w-3.5 text-[#ebb448]" />
+            <p className="text-[9px] font-black uppercase tracking-widest text-slate-400 text-center font-mono">
+              Acesso restrito a profissionais autorizados
+            </p>
           </div>
 
         </div>

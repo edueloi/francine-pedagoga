@@ -54,6 +54,7 @@ import {
   Cell
 } from "recharts";
 import { Patient, Session, Insurance, UserRole } from "../types";
+import { ConfirmModal, useToast } from "./UI";
 
 interface DashboardProps {
   patients: Patient[];
@@ -151,6 +152,8 @@ export default function Dashboard({
   onNavigate,
   onSelectPatient
 }: DashboardProps) {
+  const toast = useToast();
+
   // Filters state
   const [selectedDiagnosis, setSelectedDiagnosis] = useState<string>("Todos");
   const [selectedInsurance, setSelectedInsurance] = useState<string>("Todos");
@@ -363,6 +366,7 @@ Com base nos padrões da Clínica Integrada de Desenvolvimento Infantil:
     return localStorage.getItem("clinician_scratchpad") || "";
   });
   const [copiedScratchpad, setCopiedScratchpad] = useState(false);
+  const [confirmClearNotesOpen, setConfirmClearNotesOpen] = useState(false);
 
   useEffect(() => {
     localStorage.setItem("clinician_scratchpad", scratchpadText);
@@ -398,9 +402,13 @@ Com base nos padrões da Clínica Integrada de Desenvolvimento Infantil:
   };
 
   const handleResetScratchpad = () => {
-    if (window.confirm("Deseja realmente limpar suas notas rápidas de atendimento?")) {
-      setScratchpadText("");
-    }
+    setConfirmClearNotesOpen(true);
+  };
+
+  const handleConfirmClearNotes = () => {
+    setScratchpadText("");
+    setConfirmClearNotesOpen(false);
+    toast.success("Notas rápidas limpas com sucesso.");
   };
 
   // Simulated Live Activity Stream (Timeline Feed)
@@ -1214,6 +1222,17 @@ Com base nos padrões da Clínica Integrada de Desenvolvimento Infantil:
           </div>
         </div>
       </div>
+
+      <ConfirmModal
+        isOpen={confirmClearNotesOpen}
+        onClose={() => setConfirmClearNotesOpen(false)}
+        onConfirm={handleConfirmClearNotes}
+        title="Limpar notas rápidas?"
+        message="Suas notas rápidas de atendimento serão apagadas. Esta ação não pode ser desfeita."
+        confirmLabel="Limpar"
+        cancelLabel="Cancelar"
+        variant="primary"
+      />
     </div>
   );
 }

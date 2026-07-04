@@ -22,7 +22,8 @@ import {
   Heart
 } from "lucide-react";
 import { Patient, AgendaItem, UserRole, UserPermissions } from "../types";
-import { initialAgenda } from "../mockData";
+import { useAgendaWeeklySlots } from "../hooks/useAgendaWeeklySlots";
+import { useToast, ConfirmModal } from "./UI";
 
 interface AgendaModuleProps {
   patients: Patient[];
@@ -39,6 +40,7 @@ interface Professional {
 }
 
 export default function AgendaModule({ patients, userRole, userPermissions }: AgendaModuleProps) {
+  const toast = useToast();
   const canCreate = userPermissions ? userPermissions.agenda.criar : (userRole !== UserRole.RESTRICTED);
   const canDelete = userPermissions ? userPermissions.agenda.excluir : (userRole === UserRole.ADMIN);
 
@@ -51,7 +53,7 @@ export default function AgendaModule({ patients, userRole, userPermissions }: Ag
   }
 
   // States
-  const [appointments, setAppointments] = useState<AgendaItem[]>(initialAgenda);
+  const { slots: appointments, loading, error, createSlot, deleteSlot } = useAgendaWeeklySlots(patients);
   const [viewMode, setViewMode] = useState<"grid" | "diario" | "list">("grid");
   const [selectedDayTab, setSelectedDayTab] = useState<string>("Segunda-feira");
   const [selectedProfessionalFilter, setSelectedProfessionalFilter] = useState<string>("Todos");
@@ -118,6 +120,20 @@ export default function AgendaModule({ patients, userRole, userPermissions }: Ag
   // New Hour State
   const [newHourInput, setNewHourInput] = useState("");
 
+  // Generic reusable confirmation modal state
+  const [confirmState, setConfirmState] = useState<{
+    open: boolean;
+    title: string;
+    message: string;
+    onConfirm: () => void;
+  } | null>(null);
+
+  const requestConfirm = (title: string, message: string, action: () => void) => {
+    setConfirmState({ open: true, title, message, onConfirm: action });
+  };
+
+  const closeConfirm = () => setConfirmState(null);
+
   // Styling helper based on treatment types for the calendar cells
   const getAppStyle = (tipo: AgendaItem["tipoAtendimento"]) => {
     switch (tipo) {
@@ -178,7 +194,7 @@ export default function AgendaModule({ patients, userRole, userPermissions }: Ag
     );
   };
 
-  const handleCreateAppointment = (e: React.FormEvent) => {
+  const handleCreateAppointment = async (e: React.FormEvent) => {
     e.preventDefault();
 
     // Determine final time representation based on mode chosen
@@ -208,24 +224,26 @@ export default function AgendaModule({ patients, userRole, userPermissions }: Ag
       return;
     }
 
-    const newApp: AgendaItem = {
-      id: `app-${Date.now()}`,
-      patientId: selectedPatId,
-      patientNome: pat.nome,
-      diaSemana: schedDay,
-      horario: finalTime,
-      tipoAtendimento: schedType,
-      profissional: schedProfessional
-    };
-
-    setAppointments([...appointments, newApp]);
-    setOverlapAlert("");
-    setIsBookingModalOpen(false);
+    try {
+      await createSlot({
+        patientId: selectedPatId,
+        diaSemana: schedDay,
+        horario: finalTime,
+        tipoAtendimento: schedType,
+        profissional: schedProfessional,
+      });
+      setOverlapAlert("");
+      setIsBookingModalOpen(false);
+    } catch (err: any) {
+      setOverlapAlert(err.message || "Falha ao salvar agendamento.");
+    }
   };
 
-  const handleDeleteAppointment = (id: string) => {
-    if (confirm("Deseja remover este horário agendado?")) {
-      setAppointments(appointments.filter(app => app.id !== id));
+  const handleDeleteAppointment = async (id: string) => {
+    try {
+      await deleteSlot(id);
+    } catch (err: any) {
+      toast.error(err.message || "Falha ao remover agendamento.");
     }
   };
 
@@ -233,7 +251,7 @@ export default function AgendaModule({ patients, userRole, userPermissions }: Ag
   const toggleOperatingDay = (day: string) => {
     if (clinicDays.includes(day)) {
       if (clinicDays.length === 1) {
-        alert("A clínica precisa ter pelo menos 1 dia de funcionamento configurado.");
+        toast.warning("A clínica precisa ter pelo menos 1 dia de funcionamento configurado.");
         return;
       }
       setClinicDays(clinicDays.filter(d => d !== day));
@@ -249,11 +267,11 @@ export default function AgendaModule({ patients, userRole, userPermissions }: Ag
   const handleAddHour = (e: React.FormEvent) => {
     e.preventDefault();
     if (!newHourInput.match(/^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/)) {
-      alert("Formato inválido. Use o padrão de 24h (HH:MM), exemplo: 18:00");
+      toast.error("Formato inválido. Use o padrão de 24h (HH:MM), exemplo: 18:00");
       return;
     }
     if (clinicHours.includes(newHourInput)) {
-      alert("Este horário já está configurado.");
+      toast.warning("Este horário já está configurado.");
       return;
     }
     const updatedHours = [...clinicHours, newHourInput].sort();
@@ -264,12 +282,14 @@ export default function AgendaModule({ patients, userRole, userPermissions }: Ag
   // Remove an operational hour
   const handleRemoveHour = (hour: string) => {
     if (clinicHours.length === 1) {
-      alert("A clínica precisa ter pelo menos 1 faixa horária cadastrada.");
+      toast.warning("A clínica precisa ter pelo menos 1 faixa horária cadastrada.");
       return;
     }
-    if (confirm(`Deseja remover a faixa horária de ${hour}?`)) {
-      setClinicHours(clinicHours.filter(h => h !== hour));
-    }
+    requestConfirm(
+      `Remover horário ${hour}?`,
+      `A faixa horária de ${hour} será removida da grade de atendimento.`,
+      () => setClinicHours(clinicHours.filter(h => h !== hour))
+    );
   };
 
   // Add new professional
@@ -287,7 +307,7 @@ export default function AgendaModule({ patients, userRole, userPermissions }: Ag
 
     setProfessionals([...professionals, newProf]);
     setNewProfName("");
-    alert(`Profissional ${newProfName} adicionado à equipe com sucesso!`);
+    toast.success(`Profissional ${newProfName} adicionado à equipe com sucesso!`);
   };
 
   // Filter appointments according to selected professional
@@ -337,6 +357,17 @@ export default function AgendaModule({ patients, userRole, userPermissions }: Ag
           </button>
         </div>
       </div>
+
+      {loading && (
+        <div className="p-3 bg-blue-50/50 border border-blue-100 rounded-2xl text-xs text-slate-600 font-medium">
+          Carregando agenda...
+        </div>
+      )}
+      {error && (
+        <div className="p-3 bg-red-50 border border-red-200 rounded-2xl text-xs text-red-700 font-bold">
+          {error}
+        </div>
+      )}
 
       {/* Main Full-Width Content Board */}
       <div className="bg-white rounded-3xl border border-slate-100 shadow-sm p-6 sm:p-8 space-y-6 w-full">
@@ -464,11 +495,11 @@ export default function AgendaModule({ patients, userRole, userPermissions }: Ag
                                       {canDelete && (
                                         <button
                                           type="button"
-                                          onClick={() => {
-                                            if (confirm("Deseja remover este bloqueio de horário?")) {
-                                              setBlockedSlots(blockedSlots.filter(b => b.id !== block.id));
-                                            }
-                                          }}
+                                          onClick={() => requestConfirm(
+                                            "Remover bloqueio de horário?",
+                                            "Este bloqueio será removido da grade de horários.",
+                                            () => setBlockedSlots(blockedSlots.filter(b => b.id !== block.id))
+                                          )}
                                           className="text-slate-400 hover:text-red-600 transition text-[11px] font-bold absolute top-1 right-2 cursor-pointer opacity-0 group-hover:opacity-100"
                                           title="Desbloquear"
                                         >
@@ -502,7 +533,11 @@ export default function AgendaModule({ patients, userRole, userPermissions }: Ag
                                         {canDelete && (
                                           <button
                                             type="button"
-                                            onClick={() => handleDeleteAppointment(app.id)}
+                                            onClick={() => requestConfirm(
+                                              "Remover agendamento?",
+                                              "Este horário agendado será removido da agenda. Esta ação não pode ser desfeita.",
+                                              () => handleDeleteAppointment(app.id)
+                                            )}
                                             className="text-slate-400 hover:text-red-600 transition text-[11px] font-bold absolute top-1 right-2 cursor-pointer opacity-0 group-hover:opacity-100"
                                             title="Excluir"
                                           >
@@ -622,11 +657,11 @@ export default function AgendaModule({ patients, userRole, userPermissions }: Ag
                   {(blockedSlots.filter(b => b.diaSemana === selectedDayTab).length > 0) && canDelete && (
                     <button
                       type="button"
-                      onClick={() => {
-                        if (confirm(`Deseja remover todos os bloqueios de ${selectedDayTab}?`)) {
-                          setBlockedSlots(blockedSlots.filter(b => b.diaSemana !== selectedDayTab));
-                        }
-                      }}
+                      onClick={() => requestConfirm(
+                        `Remover todos os bloqueios de ${selectedDayTab}?`,
+                        `Todos os bloqueios de horário cadastrados para ${selectedDayTab} serão removidos.`,
+                        () => setBlockedSlots(blockedSlots.filter(b => b.diaSemana !== selectedDayTab))
+                      )}
                       className="text-[10px] font-black text-red-600 hover:text-red-700 uppercase bg-red-50 hover:bg-red-100 px-2.5 py-1 rounded-lg transition"
                     >
                       Desbloquear Dia
@@ -707,11 +742,17 @@ export default function AgendaModule({ patients, userRole, userPermissions }: Ag
                             type="button"
                             onClick={() => {
                               if (item.type === "block") {
-                                if (confirm("Deseja remover este bloqueio de horário?")) {
-                                  setBlockedSlots(blockedSlots.filter(b => b.id !== item.id));
-                                }
+                                requestConfirm(
+                                  "Remover bloqueio de horário?",
+                                  "Este bloqueio será removido da grade de horários.",
+                                  () => setBlockedSlots(blockedSlots.filter(b => b.id !== item.id))
+                                );
                               } else {
-                                handleDeleteAppointment(item.id);
+                                requestConfirm(
+                                  "Remover agendamento?",
+                                  "Este horário agendado será removido da agenda. Esta ação não pode ser desfeita.",
+                                  () => handleDeleteAppointment(item.id)
+                                );
                               }
                             }}
                             className="text-slate-300 hover:text-red-500 hover:bg-red-50 p-1.5 rounded-lg transition opacity-50 group-hover:opacity-100 cursor-pointer"
@@ -1000,11 +1041,11 @@ export default function AgendaModule({ patients, userRole, userPermissions }: Ag
                         {canDelete && (
                           <button
                             type="button"
-                            onClick={() => {
-                              if (confirm("Deseja remover este bloqueio de horário?")) {
-                                setBlockedSlots(blockedSlots.filter(b => b.id !== block.id));
-                              }
-                            }}
+                            onClick={() => requestConfirm(
+                              "Remover bloqueio de horário?",
+                              "Este bloqueio será removido da grade de horários.",
+                              () => setBlockedSlots(blockedSlots.filter(b => b.id !== block.id))
+                            )}
                             className="text-slate-300 hover:text-red-500 transition px-2 py-1 text-base cursor-pointer"
                             title="Remover bloqueio"
                           >
@@ -1041,7 +1082,11 @@ export default function AgendaModule({ patients, userRole, userPermissions }: Ag
                           {canDelete && (
                             <button
                               type="button"
-                              onClick={() => handleDeleteAppointment(app.id)}
+                              onClick={() => requestConfirm(
+                                "Remover agendamento?",
+                                "Este horário agendado será removido da agenda. Esta ação não pode ser desfeita.",
+                                () => handleDeleteAppointment(app.id)
+                              )}
                               className="text-slate-300 hover:text-red-500 transition px-2 py-1 text-base cursor-pointer"
                               title="Remover agendamento"
                             >
@@ -1494,6 +1539,20 @@ export default function AgendaModule({ patients, userRole, userPermissions }: Ag
           </div>
         </div>
       )}
+
+      <ConfirmModal
+        isOpen={!!confirmState?.open}
+        onClose={closeConfirm}
+        onConfirm={() => {
+          confirmState?.onConfirm();
+          closeConfirm();
+        }}
+        title={confirmState?.title || ""}
+        message={confirmState?.message || ""}
+        confirmLabel="Confirmar"
+        cancelLabel="Cancelar"
+        variant="danger"
+      />
     </div>
   );
 }

@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { useNavigate, useLocation } from "react-router-dom";
 import { 
   BookOpen, 
   Heart, 
@@ -23,7 +24,15 @@ import {
   ChevronRight,
   User,
   GraduationCap,
-  Menu
+  Menu,
+  Waves,
+  Puzzle,
+  BookMarked,
+  Armchair,
+  SprayCan,
+  BrainCircuit,
+  HandHeart,
+  Target
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 
@@ -95,9 +104,30 @@ export function LogoSVG({ className = "h-16 w-16" }: { className?: string }) {
   );
 }
 
+type LandingTab = "home" | "space" | "specialties" | "about" | "contact";
+
+const TAB_TO_PATH: Record<LandingTab, string> = {
+  home: "/",
+  space: "/nosso-espaco",
+  specialties: "/especialidades",
+  about: "/francine-tersi",
+  contact: "/agendamento",
+};
+
+const PATH_TO_TAB: Record<string, LandingTab> = {
+  "/": "home",
+  "/nosso-espaco": "space",
+  "/especialidades": "specialties",
+  "/francine-tersi": "about",
+  "/agendamento": "contact",
+};
+
 export default function LandingPage({ onEnterSystem }: LandingPageProps) {
-  // Navigation State - Multi-tab high-end interactive experience
-  const [activeTab, setActiveTab] = useState<"home" | "space" | "specialties" | "about" | "contact">("home");
+  // Navigation State - Multi-tab high-end interactive experience, backed by real routes
+  const navigate = useNavigate();
+  const location = useLocation();
+  const activeTab: LandingTab = PATH_TO_TAB[location.pathname] ?? "home";
+  const setActiveTab = (tab: LandingTab) => navigate(TAB_TO_PATH[tab]);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   
   // Custom interactive room navigator state
@@ -201,19 +231,25 @@ export default function LandingPage({ onEnterSystem }: LandingPageProps) {
       title: "Sala de Integração Sensorial Snoezelen",
       desc: "Um ambiente de refúgio multissensorial climatizado de última geração. Desenvolvido para acalmar, organizar e focar crianças com desordens do processamento sensorial, Autismo e TDAH. Conta com colunas de bolhas iluminadas em cores fixas, feixes de fibra óptica confortáveis, balanços de compressão proprioceptiva e painéis táteis de alto engajamento.",
       benefits: ["Regulação do tônus e alerta tátil", "Alívio imediato da sobrecarga cognitiva", "Melhora de foco para terapias cognitivas"],
-      tagColor: "bg-blue-50 text-[#1070ca] border-blue-100"
+      tagColor: "bg-blue-50 text-[#1070ca] border-blue-100",
+      icon: Waves,
+      gradient: "from-[#1070ca] to-[#0b5194]",
     },
     aba: {
       title: "Consultório de Terapia de Intervenção ABA",
       desc: "Espaço planejado cientificamente para sessões focadas na Análise do Comportamento Aplicada. Livre de poluição visual excessiva para garantir a máxima atenção ativa da criança. Equipado com materiais de intervenção modernos, quadros visuais de rotina, e uma seleção de reforçadores pedagógicos organizados.",
       benefits: ["Modelagem de repertório pró-social", "Aquisição de fala funcional sistemática", "Expansão de tempo de atenção em tarefas"],
-      tagColor: "bg-pink-50 text-[#d43f72] border-pink-100"
+      tagColor: "bg-pink-50 text-[#d43f72] border-pink-100",
+      icon: Puzzle,
+      gradient: "from-[#d43f72] to-[#a12b53]",
     },
     psicopedagogia: {
       title: "Atelier de Apoio e Psicopedagogia",
       desc: "Um ambiente inspirador que estimula o raciocínio criativo, a leitura integrada e o cálculo lógico-matemático. Conta com acervo diversificado de jogos didáticos, metodologias multissensoriais para desmistificar a dislexia e a discalculia, gerando prazer em aprender.",
       benefits: ["Aceleração da escrita e consciência silábica", "Fortalecimento do cálculo mental e autonomia", "Redução da frustração com demandas escolares"],
-      tagColor: "bg-amber-50 text-[#b8852c] border-amber-100"
+      tagColor: "bg-amber-50 text-[#b8852c] border-amber-100",
+      icon: BookMarked,
+      gradient: "from-[#ebb448] to-[#b8852c]",
     }
   };
 
@@ -230,7 +266,7 @@ export default function LandingPage({ onEnterSystem }: LandingPageProps) {
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               onClick={() => setMobileMenuOpen(false)}
-              className="fixed inset-0 bg-slate-950/60 backdrop-blur-xs z-50 md:hidden"
+              className="fixed inset-0 bg-slate-950/60 backdrop-blur-xs z-50 lg:hidden"
             />
 
             {/* Slide-over App Menu Drawer */}
@@ -239,7 +275,7 @@ export default function LandingPage({ onEnterSystem }: LandingPageProps) {
               animate={{ x: 0 }}
               exit={{ x: "100%" }}
               transition={{ type: "spring", damping: 28, stiffness: 240 }}
-              className="fixed inset-y-0 right-0 w-[85%] max-w-[330px] bg-white z-55 shadow-2xl flex flex-col md:hidden"
+              className="fixed inset-y-0 right-0 w-[85%] max-w-[380px] bg-white z-55 shadow-2xl flex flex-col lg:hidden"
             >
               {/* Drawer Header */}
               <div className="p-4.5 border-b border-slate-100 flex items-center justify-between bg-slate-50/50 shrink-0">
@@ -267,28 +303,6 @@ export default function LandingPage({ onEnterSystem }: LandingPageProps) {
               {/* Scrollable Content (Middle) */}
               <div className="flex-1 overflow-y-auto p-4 space-y-5">
                 
-                {/* Pro Exclusive Banner inside Drawer */}
-                <div className="p-4 rounded-2xl bg-slate-900 text-white relative overflow-hidden shadow-sm shrink-0">
-                  <div className="absolute right-0 bottom-0 translate-y-3 translate-x-3 opacity-10">
-                    <LogoSVG className="h-16 w-16" />
-                  </div>
-                  <div className="relative z-10 space-y-2.5">
-                    <div className="inline-flex items-center gap-1 bg-white/10 px-2 py-0.5 rounded text-[8px] font-black tracking-widest uppercase font-mono text-blue-300">
-                      <Sparkles className="h-2.5 w-2.5 text-amber-400" /> Área Profissional
-                    </div>
-                    <p className="text-[11px] font-extrabold leading-tight text-slate-100">Espaço exclusivo para terapeutas credenciados</p>
-                    <button
-                      onClick={() => {
-                        onEnterSystem();
-                        setMobileMenuOpen(false);
-                      }}
-                      className="w-full py-2 bg-[#1070ca] hover:bg-blue-600 text-white font-black text-[9px] uppercase tracking-widest rounded-lg transition-all shadow-xs font-mono cursor-pointer"
-                    >
-                      Acessar Painel Clínico PRO →
-                    </button>
-                  </div>
-                </div>
-
                 {/* Navigation Links with beautiful app style */}
                 <div className="space-y-2.5">
                   <p className="text-[9px] font-black uppercase text-slate-400 tracking-widest font-mono px-1">Navegação Principal</p>
@@ -350,7 +364,17 @@ export default function LandingPage({ onEnterSystem }: LandingPageProps) {
                 >
                   <Phone className="h-3.5 w-3.5" /> Agendar Consulta Online
                 </button>
-                
+
+                <button
+                  onClick={() => {
+                    onEnterSystem();
+                    setMobileMenuOpen(false);
+                  }}
+                  className="w-full py-2 text-slate-500 hover:text-[#1070ca] font-bold text-[10px] uppercase tracking-widest transition-colors text-center cursor-pointer"
+                >
+                  Entrar
+                </button>
+
                 <p className="text-[8px] text-slate-400 font-bold text-center uppercase tracking-widest font-mono">
                   © 2026 Espaço Aprender a Ser
                 </p>
@@ -360,20 +384,6 @@ export default function LandingPage({ onEnterSystem }: LandingPageProps) {
         )}
       </AnimatePresence>
       
-      {/* Clinician Access Bar - Clean, thin, high-contrast black accent bar */}
-      <div className="bg-slate-900 text-white py-2 px-6 text-xs font-mono font-semibold flex flex-wrap items-center justify-between gap-2 border-b border-slate-950">
-        <div className="flex items-center gap-1.5 text-slate-300">
-          <Sparkles className="h-4 w-4 text-[#ebb448]" />
-          <span>Exclusivo para Terapeutas do Espaço Aprender a Ser</span>
-        </div>
-        <button 
-          onClick={onEnterSystem}
-          className="px-3 py-1 bg-white/10 hover:bg-[#1070ca] hover:text-white text-white rounded transition-colors duration-200 cursor-pointer text-[11px] font-black uppercase tracking-wider"
-        >
-          Acessar Painel Clínico Pro →
-        </button>
-      </div>
-
       {/* Modern, elegant sticky header with frosted glass style */}
       <header id="landing-header" className="sticky top-0 z-40 bg-white/85 backdrop-blur-md border-b border-slate-100 shadow-xs">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-20 flex items-center justify-between">
@@ -392,7 +402,7 @@ export default function LandingPage({ onEnterSystem }: LandingPageProps) {
           </div>
 
           {/* Premium Modern Navigation - Absolutely no retro black block borders */}
-          <nav className="hidden md:flex items-center gap-1 bg-slate-100/60 p-1.5 rounded-full border border-slate-200/50">
+          <nav className="hidden lg:flex items-center gap-1 bg-slate-100/60 p-1.5 rounded-full border border-slate-200/50">
             {[
               { id: "home", label: "Início" },
               { id: "space", label: "Nosso Espaço" },
@@ -406,8 +416,8 @@ export default function LandingPage({ onEnterSystem }: LandingPageProps) {
                   key={tab.id}
                   onClick={() => setActiveTab(tab.id as any)}
                   className={`px-5 py-2 text-xs font-bold rounded-full transition-all duration-200 cursor-pointer ${
-                    isActive 
-                      ? "bg-[#1070ca] text-white shadow-md shadow-blue-500/10" 
+                    isActive
+                      ? "bg-[#1070ca] text-white shadow-md shadow-blue-500/10"
                       : "text-slate-600 hover:text-slate-900 hover:bg-white/50"
                   }`}
                 >
@@ -417,19 +427,19 @@ export default function LandingPage({ onEnterSystem }: LandingPageProps) {
             })}
           </nav>
 
-          {/* Right Area: Booking and Hamburger button */}
+          {/* Right Area: Login and Hamburger button */}
           <div className="flex items-center gap-2 sm:gap-3">
             <button
-              onClick={() => { setActiveTab("contact"); setMobileMenuOpen(false); }}
-              className="hidden sm:flex px-5 py-2.5 rounded-full bg-slate-900 hover:bg-[#d43f72] text-white font-extrabold text-xs uppercase tracking-wider transition-all duration-300 shadow-md cursor-pointer items-center gap-1.5"
+              onClick={onEnterSystem}
+              className="hidden lg:flex px-4 py-2.5 rounded-full border border-slate-200 hover:border-[#1070ca] text-slate-600 hover:text-[#1070ca] font-bold text-xs uppercase tracking-wider transition-all duration-300 cursor-pointer items-center"
             >
-              Agendar Consulta <ChevronRight className="h-3.5 w-3.5" />
+              Entrar
             </button>
 
-            {/* Mobile Menu Button */}
+            {/* Mobile / Tablet Menu Button (iPad, iPad Pro, and phones) */}
             <button
               onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-              className="p-2 text-slate-600 hover:text-[#1070ca] rounded-xl hover:bg-slate-100/80 transition cursor-pointer md:hidden border border-slate-100"
+              className="p-2 text-slate-600 hover:text-[#1070ca] rounded-xl hover:bg-slate-100/80 transition cursor-pointer lg:hidden border border-slate-100"
               aria-label="Menu"
             >
               {mobileMenuOpen ? <X className="h-5.5 w-5.5" /> : <Menu className="h-5.5 w-5.5" />}
@@ -515,25 +525,6 @@ export default function LandingPage({ onEnterSystem }: LandingPageProps) {
 
               </div>
 
-              {/* Statistics Panel */}
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
-                {[
-                  { label: "Famílias Acolhidas", val: "150+", icon: <Heart className="h-5 w-5 text-[#d43f72]" />, bg: "bg-pink-50 text-[#d43f72]" },
-                  { label: "Intervenções Padrão-Ouro", val: "100%", icon: <Award className="h-5 w-5 text-[#1070ca]" />, bg: "bg-blue-50 text-[#1070ca]" },
-                  { label: "Sessões Individuais", val: "Milhares", icon: <Smile className="h-5 w-5 text-[#ebb448]" />, bg: "bg-amber-50 text-[#b8852c]" }
-                ].map((stat, idx) => (
-                  <div key={idx} className="bg-white border border-slate-100 p-6 rounded-2xl shadow-sm hover:shadow-md transition-shadow flex items-center gap-4">
-                    <div className={`h-12 w-12 rounded-xl ${stat.bg} flex items-center justify-center`}>
-                      {stat.icon}
-                    </div>
-                    <div>
-                      <span className="text-2xl font-black text-slate-900 block font-display leading-none">{stat.val}</span>
-                      <span className="text-xs text-slate-500 font-semibold mt-1 block">{stat.label}</span>
-                    </div>
-                  </div>
-                ))}
-              </div>
-
               {/* Strategic Pillars Section */}
               <div className="space-y-8">
                 <div className="text-center space-y-2">
@@ -568,42 +559,119 @@ export default function LandingPage({ onEnterSystem }: LandingPageProps) {
                 </div>
               </div>
 
-              {/* Friendly Testimonials */}
-              <div className="bg-white border border-slate-100 p-8 sm:p-10 rounded-3xl shadow-sm space-y-8">
-                <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-4 border-b border-slate-100 pb-5">
-                  <div>
-                    <span className="text-xs font-mono font-bold text-[#d43f72] uppercase tracking-widest">Histórias de Sucesso</span>
-                    <h3 className="font-display text-xl sm:text-2xl font-extrabold text-slate-900 mt-1">O carinho de quem vivenciou a evolução</h3>
-                  </div>
-                  <div className="flex items-center gap-1">
-                    {[1,2,3,4,5].map(s => <Star key={s} className="h-4.5 w-4.5 fill-[#ebb448] text-transparent" />)}
-                  </div>
+              {/* Specialties Preview */}
+              <div className="space-y-8">
+                <div className="text-center space-y-2">
+                  <span className="text-[11px] font-mono font-extrabold text-[#d43f72] bg-pink-50 px-3 py-1 rounded-full border border-pink-100 uppercase tracking-widest">Catálogo de Serviços</span>
+                  <h3 className="font-display text-3xl font-extrabold text-slate-950">Nossas Especialidades</h3>
+                  <p className="text-sm text-slate-500 max-w-xl mx-auto font-medium">Intervenções pautadas em rigor técnico, adaptadas à realidade de cada criança.</p>
                 </div>
 
-                <div className="grid md:grid-cols-2 gap-8">
+                <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-5">
                   {[
-                    {
-                      quote: "As sessões de Integração Sensorial Snoezelen mudaram completamente a rotina do meu filho. Ele agora dorme muito melhor e consegue manter o foco nas atividades de escrita escolar. A equipe é incrivelmente profissional e carinhosa.",
-                      author: "Viviane Silva",
-                      rel: "Mãe do Felipe (6 anos)"
-                    },
-                    {
-                      quote: "Encontramos na Francine um apoio que nunca tivemos em outro lugar. A ponte que ela faz entre a clínica e a escola do meu filho fez toda a diferença para adaptarmos o material didático à realidade dele.",
-                      author: "Carlos Eduardo",
-                      rel: "Pai do Arthur (8 anos)"
-                    }
-                  ].map((t, i) => (
-                    <div key={i} className="bg-slate-50/50 p-6 rounded-2xl border border-slate-100 space-y-4">
-                      <p className="text-xs sm:text-sm text-slate-600 italic leading-relaxed">"{t.quote}"</p>
-                      <div className="flex justify-between items-center border-t border-slate-100 pt-3">
-                        <div>
-                          <p className="text-xs font-black text-slate-950">{t.author}</p>
-                          <p className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">{t.rel}</p>
-                        </div>
-                        <span className="text-[9px] font-mono bg-white border border-slate-200 px-2 py-0.5 rounded text-slate-500">Tatuí - SP</span>
+                    { title: "Psicopedagogia Clínica", icon: BookMarked, gradient: "from-[#1070ca] to-[#0b5194]" },
+                    { title: "Neuropsicopedagogia", icon: BrainCircuit, gradient: "from-[#d43f72] to-[#a12b53]" },
+                    { title: "Estratégias ABA", icon: Target, gradient: "from-[#ebb448] to-[#b8852c]" },
+                    { title: "Integração Sensorial", icon: Waves, gradient: "from-slate-700 to-slate-900" },
+                  ].map((esp, i) => (
+                    <button
+                      key={i}
+                      onClick={() => setActiveTab("specialties")}
+                      className="group bg-white border border-slate-100 rounded-2xl p-6 shadow-sm hover:shadow-lg hover:-translate-y-0.5 transition-all duration-300 text-left cursor-pointer space-y-3"
+                    >
+                      <div className={`h-11 w-11 rounded-xl bg-gradient-to-br ${esp.gradient} flex items-center justify-center shadow-sm`}>
+                        <esp.icon className="h-5.5 w-5.5 text-white" strokeWidth={1.75} />
                       </div>
+                      <h4 className="font-display font-bold text-sm text-slate-900 leading-tight">{esp.title}</h4>
+                      <span className="text-[11px] text-[#1070ca] font-bold flex items-center gap-1 group-hover:gap-1.5 transition-all">
+                        Saiba mais <ChevronRight className="h-3.5 w-3.5" />
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* How it works */}
+              <div className="space-y-8">
+                <div className="text-center space-y-2">
+                  <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-blue-50 text-[#1070ca] rounded-full text-xs font-bold border border-blue-100 uppercase tracking-widest">Como Funciona</span>
+                  <h3 className="font-display text-3xl font-extrabold text-slate-950">O Caminho Até o Acolhimento</h3>
+                </div>
+
+                <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-6">
+                  {[
+                    { step: "01", title: "Contato Inicial", desc: "Você nos chama pelo WhatsApp ou site e contamos um pouco sobre a necessidade do seu filho(a).", icon: MessageCircle },
+                    { step: "02", title: "Avaliação Clínica", desc: "Realizamos uma avaliação multidisciplinar para entender o perfil de desenvolvimento da criança.", icon: HandHeart },
+                    { step: "03", title: "Plano Individualizado", desc: "Elaboramos um plano de intervenção sob medida, com metas claras e mensuráveis.", icon: Target },
+                    { step: "04", title: "Acompanhamento Contínuo", desc: "Sessões regulares com relatórios de evolução e ponte ativa com escola e família.", icon: HandHeart },
+                  ].map((s, i) => (
+                    <div key={i} className="relative bg-white border border-slate-100 rounded-2xl p-6 shadow-sm space-y-3">
+                      <span className="text-3xl font-black text-slate-100 font-display absolute top-4 right-5">{s.step}</span>
+                      <div className="h-11 w-11 rounded-xl bg-blue-50 flex items-center justify-center relative z-10">
+                        <s.icon className="h-5.5 w-5.5 text-[#1070ca]" strokeWidth={1.75} />
+                      </div>
+                      <h4 className="font-display font-bold text-sm text-slate-900 relative z-10">{s.title}</h4>
+                      <p className="text-xs text-slate-500 leading-relaxed font-medium relative z-10">{s.desc}</p>
                     </div>
                   ))}
+                </div>
+              </div>
+
+              {/* Meet Francine highlight */}
+              <div className="grid md:grid-cols-12 gap-6 items-center bg-white border border-slate-100 rounded-3xl shadow-sm overflow-hidden">
+                <div className="md:col-span-4 h-64 md:h-full">
+                  <img
+                    src="/images/1.png"
+                    alt="Francine Maria Tersi"
+                    className="w-full h-full object-cover object-[50%_20%]"
+                  />
+                </div>
+                <div className="md:col-span-8 p-8 sm:p-10 space-y-4">
+                  <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-rose-50 text-[#d43f72] rounded-full text-xs font-bold border border-rose-100 uppercase tracking-widest">
+                    <User className="h-3.5 w-3.5" /> Direção Clínica
+                  </span>
+                  <h3 className="font-display text-2xl font-extrabold text-slate-900">Francine Maria Tersi</h3>
+                  <p className="text-sm text-slate-600 leading-relaxed font-medium">
+                    Psicopedagoga, Neuropsicopedagoga e Terapeuta ABA, fundadora do Espaço Aprender a Ser. Meu compromisso é caminhar ao lado das famílias e das crianças, promovendo o desenvolvimento com acolhimento, estratégias personalizadas e muito amor pela profissão.
+                  </p>
+                  <button
+                    onClick={() => setActiveTab("about")}
+                    className="inline-flex items-center gap-1.5 text-xs font-bold text-[#1070ca] hover:text-[#0b5194] transition-colors cursor-pointer"
+                  >
+                    Conhecer a trajetória completa <ChevronRight className="h-4 w-4" />
+                  </button>
+                </div>
+              </div>
+
+              {/* Final Booking CTA */}
+              <div className="relative bg-gradient-to-br from-slate-900 to-slate-950 rounded-3xl p-8 sm:p-12 shadow-xl shadow-slate-900/10 overflow-hidden text-center">
+                <div className="absolute top-0 left-1/2 -translate-x-1/2 h-64 w-64 rounded-full bg-[#1070ca]/20 blur-3xl" />
+                <div className="relative z-10 max-w-xl mx-auto space-y-5">
+                  <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-white/10 border border-white/10 text-[#ebb448] rounded-full text-xs font-bold uppercase tracking-widest">
+                    <Calendar className="h-3.5 w-3.5" /> Vamos conversar?
+                  </span>
+                  <h3 className="font-display text-2xl sm:text-3xl font-extrabold text-white tracking-tight">
+                    Dê o primeiro passo para o desenvolvimento do seu filho(a)
+                  </h3>
+                  <p className="text-sm text-slate-300 leading-relaxed">
+                    Agende uma conversa inicial com nossa equipe e descubra como podemos ajudar de forma individualizada e acolhedora.
+                  </p>
+                  <div className="flex flex-col sm:flex-row items-center justify-center gap-3 pt-2">
+                    <button
+                      onClick={() => setActiveTab("contact")}
+                      className="w-full sm:w-auto px-6 py-3 bg-[#d43f72] hover:bg-[#a12b53] text-white rounded-full font-bold text-xs uppercase tracking-wider transition-colors cursor-pointer flex items-center justify-center gap-2"
+                    >
+                      <Calendar className="h-4 w-4" /> Agendar Conversa
+                    </button>
+                    <a
+                      href="https://wa.me/5515996723208"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="w-full sm:w-auto px-6 py-3 bg-white/10 hover:bg-white/15 border border-white/10 text-white rounded-full font-bold text-xs uppercase tracking-wider transition-colors cursor-pointer flex items-center justify-center gap-2"
+                    >
+                      <Phone className="h-4 w-4" /> Falar no WhatsApp
+                    </a>
+                  </div>
                 </div>
               </div>
 
@@ -621,74 +689,91 @@ export default function LandingPage({ onEnterSystem }: LandingPageProps) {
               className="space-y-12"
             >
               {/* Introduction Banner */}
-              <div className="bg-white border border-slate-100 rounded-3xl p-8 shadow-sm flex flex-col md:flex-row items-center gap-8">
-                <div className="space-y-4 flex-1">
-                  <span className="inline-flex items-center gap-1 px-3 py-1 bg-blue-50 text-[#1070ca] rounded-full text-xs font-bold border border-blue-100 uppercase tracking-widest">Ambientes de Alto Nível</span>
-                  <h2 className="font-display text-3xl font-extrabold text-slate-900">
+              <div className="relative bg-slate-900 rounded-3xl p-8 sm:p-10 shadow-xl shadow-slate-900/10 overflow-hidden flex flex-col md:flex-row items-center gap-8">
+                <div className="absolute top-0 right-0 h-72 w-72 rounded-full bg-[#1070ca]/20 blur-3xl -translate-y-1/3 translate-x-1/4" />
+                <div className="absolute bottom-0 left-0 h-56 w-56 rounded-full bg-[#d43f72]/15 blur-3xl translate-y-1/3 -translate-x-1/4" />
+                <div className="relative z-10 space-y-4 flex-1">
+                  <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-white/10 border border-white/10 text-[#ebb448] rounded-full text-xs font-bold uppercase tracking-widest">
+                    <Sparkles className="h-3.5 w-3.5" /> Ambientes de Alto Nível
+                  </span>
+                  <h2 className="font-display text-3xl sm:text-4xl font-extrabold text-white tracking-tight">
                     O Cuidado em Cada Centímetro Quadrado
                   </h2>
-                  <p className="text-sm text-slate-600 leading-relaxed">
+                  <p className="text-sm text-slate-300 leading-relaxed max-w-xl">
                     Nossa infraestrutura clínica foi inteiramente desenhada para proporcionar um senso de segurança psicológica e conforto tátil. Seguindo regras rígidas de adaptação para neurodesenvolvimento, reduzimos estímulos sonoros perturbadores e otimizamos a regulação sensorial.
                   </p>
                 </div>
-                <div className="w-24 h-24 rounded-2xl bg-blue-50 flex items-center justify-center text-4xl shrink-0">
-                  🏡
+                <div className="relative z-10 w-24 h-24 sm:w-28 sm:h-28 rounded-3xl bg-white/10 border border-white/10 backdrop-blur-sm flex items-center justify-center shrink-0">
+                  <Armchair className="h-11 w-11 text-[#ebb448]" />
                 </div>
               </div>
 
               {/* Interactive Multi-view Rooms */}
-              <div className="grid lg:grid-cols-12 gap-8 items-start">
-                
+              <div className="grid lg:grid-cols-12 gap-6 lg:gap-8 items-start">
+
                 {/* Rooms Tab Selector */}
-                <div className="lg:col-span-4 space-y-2">
+                <div className="lg:col-span-4 space-y-2.5">
                   <span className="text-[10px] font-mono font-bold text-slate-400 uppercase tracking-wider block px-1 mb-2">Selecione para explorar detalhes técnicos:</span>
-                  {[
-                    { id: "snoezelen", label: "Sala Sensorial Snoezelen", icon: "🔮" },
-                    { id: "aba", label: "Consultório de ABA", icon: "🧩" },
-                    { id: "psicopedagogia", label: "Atelier Psicopedagógico", icon: "📚" }
-                  ].map((room) => {
-                    const isSelected = selectedRoomId === room.id;
+                  {Object.entries(roomsData).map(([id, room]) => {
+                    const isSelected = selectedRoomId === id;
+                    const RoomIcon = room.icon;
                     return (
                       <button
-                        key={room.id}
-                        onClick={() => setSelectedRoomId(room.id)}
-                        className={`w-full p-4 rounded-2xl text-left font-bold text-xs uppercase tracking-wider transition-all duration-200 flex items-center gap-3 border cursor-pointer ${
-                          isSelected 
-                            ? "bg-slate-900 border-slate-900 text-white shadow-lg shadow-slate-900/10" 
-                            : "bg-white border-slate-100 text-slate-700 hover:bg-slate-50"
+                        key={id}
+                        onClick={() => setSelectedRoomId(id)}
+                        className={`w-full p-4 rounded-2xl text-left font-bold text-xs uppercase tracking-wider transition-all duration-300 flex items-center gap-3 border cursor-pointer group ${
+                          isSelected
+                            ? `bg-gradient-to-br ${room.gradient} border-transparent text-white shadow-lg shadow-slate-900/15 scale-[1.02]`
+                            : "bg-white border-slate-100 text-slate-700 hover:bg-slate-50 hover:border-slate-200"
                         }`}
                       >
-                        <span className="text-lg bg-slate-100 p-1 rounded-lg border border-slate-200/40 shrink-0">{room.icon}</span>
-                        <span>{room.label}</span>
+                        <span className={`h-10 w-10 rounded-xl flex items-center justify-center shrink-0 transition-colors ${
+                          isSelected ? "bg-white/20" : "bg-slate-100 group-hover:bg-slate-200/70"
+                        }`}>
+                          <RoomIcon className={`h-5 w-5 ${isSelected ? "text-white" : "text-slate-500"}`} />
+                        </span>
+                        <span>{room.title.split(" de ")[0] === room.title ? room.title : room.title}</span>
                       </button>
                     );
                   })}
                 </div>
 
                 {/* Details Window */}
-                <div className="lg:col-span-8 bg-white border border-slate-100 p-6 sm:p-8 rounded-3xl shadow-sm space-y-6">
-                  <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 pb-4">
-                    <h3 className="font-display text-xl font-bold text-slate-900">
-                      {roomsData[selectedRoomId as keyof typeof roomsData].title}
-                    </h3>
-                    <span className={`text-[10px] font-mono font-bold uppercase tracking-wider px-2.5 py-1 rounded-full border ${roomsData[selectedRoomId as keyof typeof roomsData].tagColor}`}>
-                      Padrão Clínico Certificado
-                    </span>
+                <div className="lg:col-span-8 bg-white border border-slate-100 rounded-3xl shadow-sm overflow-hidden">
+                  {/* Visual header strip with icon and gradient */}
+                  <div className={`relative h-32 sm:h-40 bg-gradient-to-br ${roomsData[selectedRoomId as keyof typeof roomsData].gradient} flex items-center justify-center overflow-hidden`}>
+                    <div className="absolute -right-6 -top-6 h-32 w-32 rounded-full bg-white/10" />
+                    <div className="absolute -left-8 -bottom-8 h-36 w-36 rounded-full bg-white/5" />
+                    {(() => {
+                      const RoomIcon = roomsData[selectedRoomId as keyof typeof roomsData].icon;
+                      return <RoomIcon className="h-14 w-14 sm:h-16 sm:w-16 text-white/90 relative z-10" strokeWidth={1.5} />;
+                    })()}
                   </div>
 
-                  <p className="text-xs sm:text-sm text-slate-600 leading-relaxed font-medium">
-                    {roomsData[selectedRoomId as keyof typeof roomsData].desc}
-                  </p>
+                  <div className="p-6 sm:p-8 space-y-6">
+                    <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 pb-4">
+                      <h3 className="font-display text-xl font-bold text-slate-900">
+                        {roomsData[selectedRoomId as keyof typeof roomsData].title}
+                      </h3>
+                      <span className={`text-[10px] font-mono font-bold uppercase tracking-wider px-2.5 py-1 rounded-full border shrink-0 ${roomsData[selectedRoomId as keyof typeof roomsData].tagColor}`}>
+                        Padrão Clínico Certificado
+                      </span>
+                    </div>
 
-                  <div className="space-y-3 pt-2">
-                    <span className="text-[10px] font-mono font-bold text-slate-400 uppercase tracking-widest block">Benefícios e Aplicação Prática:</span>
-                    <div className="grid sm:grid-cols-2 gap-3">
-                      {roomsData[selectedRoomId as keyof typeof roomsData].benefits.map((b, idx) => (
-                        <div key={idx} className="flex gap-2 items-center bg-slate-50 p-3.5 rounded-xl border border-slate-100">
-                          <CheckCircle2 className="h-4 w-4 text-[#1070ca] shrink-0" />
-                          <span className="text-xs font-bold text-slate-700 leading-tight">{b}</span>
-                        </div>
-                      ))}
+                    <p className="text-xs sm:text-sm text-slate-600 leading-relaxed font-medium">
+                      {roomsData[selectedRoomId as keyof typeof roomsData].desc}
+                    </p>
+
+                    <div className="space-y-3 pt-2">
+                      <span className="text-[10px] font-mono font-bold text-slate-400 uppercase tracking-widest block">Benefícios e Aplicação Prática:</span>
+                      <div className="grid sm:grid-cols-2 gap-3">
+                        {roomsData[selectedRoomId as keyof typeof roomsData].benefits.map((b, idx) => (
+                          <div key={idx} className="flex gap-2.5 items-center bg-slate-50 p-3.5 rounded-xl border border-slate-100">
+                            <CheckCircle2 className="h-4 w-4 text-[#1070ca] shrink-0" />
+                            <span className="text-xs font-bold text-slate-700 leading-tight">{b}</span>
+                          </div>
+                        ))}
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -704,12 +789,14 @@ export default function LandingPage({ onEnterSystem }: LandingPageProps) {
 
                 <div className="grid sm:grid-cols-3 gap-6">
                   {[
-                    { label: "Área de Espera Lúdica", d: "Jogos interativos e livraria para os pais relaxarem.", icon: "📚", col: "border-t-4 border-[#1070ca]" },
-                    { label: "Mobiliário Adaptado", d: "Mesas e cadeiras com regulagem de altura ergonômica.", icon: "🪑", col: "border-t-4 border-[#d43f72]" },
-                    { label: "Higiene e Protocolo", d: "Higienização completa sistemática pós-atendimentos.", icon: "🧼", col: "border-t-4 border-[#ebb448]" }
+                    { label: "Área de Espera Lúdica", d: "Jogos interativos e livraria para os pais relaxarem.", icon: BookOpen, accent: "text-[#1070ca] bg-blue-50", col: "border-t-4 border-[#1070ca]" },
+                    { label: "Mobiliário Adaptado", d: "Mesas e cadeiras com regulagem de altura ergonômica.", icon: Armchair, accent: "text-[#d43f72] bg-pink-50", col: "border-t-4 border-[#d43f72]" },
+                    { label: "Higiene e Protocolo", d: "Higienização completa sistemática pós-atendimentos.", icon: SprayCan, accent: "text-[#b8852c] bg-amber-50", col: "border-t-4 border-[#ebb448]" }
                   ].map((f, i) => (
-                    <div key={i} className={`bg-white border border-slate-100 p-6 rounded-2xl shadow-xs space-y-3 ${f.col}`}>
-                      <div className="text-2xl">{f.icon}</div>
+                    <div key={i} className={`bg-white border border-slate-100 p-6 rounded-2xl shadow-xs hover:shadow-md transition-shadow space-y-3 ${f.col}`}>
+                      <div className={`h-11 w-11 rounded-xl flex items-center justify-center ${f.accent}`}>
+                        <f.icon className="h-5.5 w-5.5" strokeWidth={1.75} />
+                      </div>
                       <h4 className="font-display font-bold text-sm text-slate-900 uppercase">{f.label}</h4>
                       <p className="text-xs text-slate-500 leading-relaxed">{f.d}</p>
                     </div>
@@ -738,39 +825,53 @@ export default function LandingPage({ onEnterSystem }: LandingPageProps) {
                   <p className="text-sm text-slate-500 max-w-xl mx-auto font-medium">Oferecemos intervenções pautadas em rigor técnico de nível internacional.</p>
                 </div>
 
-                <div className="grid md:grid-cols-2 gap-8">
+                <div className="grid md:grid-cols-2 gap-6 lg:gap-8">
                   {[
                     {
                       title: "Psicopedagogia Clínica",
                       desc: "Investiga e intervém nas barreiras de aprendizagem que prejudicam a evolução escolar. Foco na melhora da alfabetização, leitura fluida, escrita, cálculo matemático básico e raciocínio lógico.",
-                      badgeColor: "bg-blue-50 text-[#1070ca] border-blue-100"
+                      badgeColor: "bg-blue-50 text-[#1070ca] border-blue-100",
+                      icon: BookMarked,
+                      gradient: "from-[#1070ca] to-[#0b5194]",
                     },
                     {
                       title: "Neuropsicopedagogia Clínica",
                       desc: "Articula os conhecimentos sobre as bases neurais com a aprendizagem escolar. Estimula e desenvolve as funções executivas essenciais (como controle de impulsos, planejamento e flexibilidade cognitiva).",
-                      badgeColor: "bg-pink-50 text-[#d43f72] border-pink-100"
+                      badgeColor: "bg-pink-50 text-[#d43f72] border-pink-100",
+                      icon: BrainCircuit,
+                      gradient: "from-[#d43f72] to-[#a12b53]",
                     },
                     {
                       title: "Estratégias Baseadas em ABA",
                       desc: "Análise do Comportamento Aplicada (ABA). Intervenções intensivas altamente eficazes focadas em aumentar repertório comportamental adequado, desenvolver comunicação funcional e reduzir comportamentos disruptivos.",
-                      badgeColor: "bg-amber-50 text-[#b8852c] border-amber-100"
+                      badgeColor: "bg-amber-50 text-[#b8852c] border-amber-100",
+                      icon: Target,
+                      gradient: "from-[#ebb448] to-[#b8852c]",
                     },
                     {
                       title: "Integração Sensorial / Snoezelen",
                       desc: "Indicada para crianças com transtorno do processamento sensorial. Promove a adaptação e autorregulação através de canais multissensoriais estruturados e acolhedores de Snoezelen.",
-                      badgeColor: "bg-slate-100 text-slate-700 border-slate-200"
+                      badgeColor: "bg-slate-100 text-slate-700 border-slate-200",
+                      icon: Waves,
+                      gradient: "from-slate-700 to-slate-900",
                     }
                   ].map((esp, i) => (
-                    <div key={i} className="bg-white border border-slate-100 p-6 sm:p-8 rounded-3xl shadow-sm hover:shadow-md transition-shadow flex flex-col justify-between space-y-4">
-                      <div className="space-y-2">
-                        <span className={`text-[10px] font-mono font-bold uppercase tracking-wider px-2.5 py-0.5 rounded-full border ${esp.badgeColor}`}>
-                          Especialidade Clínica
-                        </span>
-                        <h3 className="font-display text-lg font-bold text-slate-900">{esp.title}</h3>
-                        <p className="text-xs sm:text-sm text-slate-600 leading-relaxed font-medium">{esp.desc}</p>
-                      </div>
-                      <div className="flex items-center gap-1 text-xs text-[#1070ca] font-bold">
-                        Mais Informações <ChevronRight className="h-4 w-4" />
+                    <div key={i} className="group bg-white border border-slate-100 rounded-3xl shadow-sm hover:shadow-lg hover:-translate-y-0.5 transition-all duration-300 flex flex-col overflow-hidden">
+                      <div className={`h-1.5 w-full bg-gradient-to-r ${esp.gradient}`} />
+                      <div className="p-6 sm:p-8 flex flex-col justify-between flex-1 space-y-4">
+                        <div className="space-y-3">
+                          <div className={`h-12 w-12 rounded-2xl bg-gradient-to-br ${esp.gradient} flex items-center justify-center shadow-sm shrink-0`}>
+                            <esp.icon className="h-6 w-6 text-white" strokeWidth={1.75} />
+                          </div>
+                          <span className={`inline-block text-[10px] font-mono font-bold uppercase tracking-wider px-2.5 py-0.5 rounded-full border ${esp.badgeColor}`}>
+                            Especialidade Clínica
+                          </span>
+                          <h3 className="font-display text-lg font-bold text-slate-900">{esp.title}</h3>
+                          <p className="text-xs sm:text-sm text-slate-600 leading-relaxed font-medium">{esp.desc}</p>
+                        </div>
+                        <div className="flex items-center gap-1 text-xs text-[#1070ca] font-bold group-hover:gap-2 transition-all">
+                          Mais Informações <ChevronRight className="h-4 w-4" />
+                        </div>
                       </div>
                     </div>
                   ))}
@@ -778,11 +879,15 @@ export default function LandingPage({ onEnterSystem }: LandingPageProps) {
               </div>
 
               {/* Modern Clinical Questionnaire Screen (Interactive Screener tool) */}
-              <div className="bg-white border border-slate-100 p-6 sm:p-10 rounded-3xl shadow-sm">
-                <div className="max-w-2xl mx-auto space-y-6">
-                  
-                  <div className="text-center space-y-2">
-                    <span className="text-[11px] font-mono font-extrabold text-[#d43f72] bg-pink-50 px-3 py-1 rounded-full border border-pink-100 uppercase tracking-widest">Triagem Rápida</span>
+              <div className="relative bg-white border border-slate-100 p-6 sm:p-10 rounded-3xl shadow-sm overflow-hidden">
+                <div className="absolute -top-16 -right-16 h-56 w-56 rounded-full bg-pink-50/70 blur-2xl" />
+                <div className="relative max-w-2xl mx-auto space-y-6">
+
+                  <div className="text-center space-y-3">
+                    <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-[#d43f72] to-[#a12b53] flex items-center justify-center mx-auto shadow-md shadow-pink-200">
+                      <HandHeart className="h-7 w-7 text-white" strokeWidth={1.75} />
+                    </div>
+                    <span className="text-[11px] font-mono font-extrabold text-[#d43f72] bg-pink-50 px-3 py-1 rounded-full border border-pink-100 uppercase tracking-widest inline-block">Triagem Rápida</span>
                     <h3 className="font-display text-2xl font-black text-slate-900">Seu filho(a) precisa de suporte?</h3>
                     <p className="text-xs text-slate-500 font-semibold uppercase">Responda a 5 perguntas elaboradas por nossos especialistas</p>
                   </div>
@@ -879,8 +984,12 @@ export default function LandingPage({ onEnterSystem }: LandingPageProps) {
                 {/* Professional Profile Frame */}
                 <div className="lg:col-span-4 bg-white border border-slate-100 rounded-3xl p-6 shadow-sm flex flex-col justify-between text-center space-y-6">
                   <div className="space-y-4">
-                    <div className="w-36 h-36 rounded-full bg-slate-50 border border-slate-200/50 mx-auto flex items-center justify-center text-4xl shadow-sm shadow-slate-100">
-                      👩‍⚕️
+                    <div className="w-36 h-36 rounded-full bg-slate-50 border border-slate-200/50 mx-auto overflow-hidden shadow-sm shadow-slate-100">
+                      <img
+                        src="/images/1.png"
+                        alt="Francine Maria Tersi"
+                        className="w-full h-full object-cover object-[50%_20%] scale-125"
+                      />
                     </div>
                     <div>
                       <h3 className="font-display text-xl font-bold text-slate-900">Francine Maria Tersi</h3>
@@ -905,7 +1014,7 @@ export default function LandingPage({ onEnterSystem }: LandingPageProps) {
                 <div className="lg:col-span-8 bg-white border border-slate-100 p-8 sm:p-10 rounded-3xl shadow-sm space-y-6">
                   <span className="inline-flex items-center gap-1 px-3 py-1 bg-amber-50 text-[#b8852c] rounded-full text-xs font-bold border border-amber-100 uppercase tracking-widest">Nossa Missão</span>
                   <h3 className="font-display text-2xl font-extrabold text-slate-900">Educação e Saúde Integradas</h3>
-                  
+
                   <div className="space-y-4 text-xs sm:text-sm text-slate-600 leading-relaxed font-medium">
                     <p>
                       Olá, sou a <strong>Francine Maria Tersi</strong>. Ao longo da minha carreira, percebi que a evolução escolar e comportamental de uma criança depende diretamente da harmonia entre a ciência clínica, o amor do ambiente familiar e a adaptação do ambiente escolar.
@@ -916,6 +1025,18 @@ export default function LandingPage({ onEnterSystem }: LandingPageProps) {
                     <p>
                       Realizamos conexões permanentes e reuniões sistemáticas com as escolas de Tatuí e região, garantindo que as diretrizes terapêuticas sejam aplicadas na prática dentro da sala de aula para uma verdadeira inclusão escolar.
                     </p>
+                  </div>
+
+                  <blockquote className="border-l-4 border-[#d43f72] bg-rose-50/40 rounded-r-2xl px-5 py-4 text-xs sm:text-sm text-slate-700 leading-relaxed font-medium italic">
+                    "Por trás de cada conquista de uma criança, há uma rede de apoio, afeto e escuta. Como psicopedagoga, meu compromisso é caminhar ao lado das famílias e das crianças, promovendo o desenvolvimento com acolhimento, estratégias personalizadas e muito amor pela profissão. 🌱 Cada passo é único, e cada progresso, uma grande vitória!"
+                  </blockquote>
+
+                  <div className="rounded-2xl overflow-hidden border border-slate-100">
+                    <img
+                      src="/images/2.png"
+                      alt="Francine Tersi em atendimento no Espaço Aprender a Ser"
+                      className="w-full h-64 sm:h-80 object-cover object-[50%_15%]"
+                    />
                   </div>
 
                   <div className="grid sm:grid-cols-2 gap-4 pt-4 border-t border-slate-100">
@@ -934,6 +1055,32 @@ export default function LandingPage({ onEnterSystem }: LandingPageProps) {
                       </div>
                     </div>
                   </div>
+
+                  <div className="space-y-3 pt-4 border-t border-slate-100">
+                    <h4 className="text-xs font-bold text-slate-900 uppercase tracking-wide">Formação contínua & atualização</h4>
+                    <p className="text-xs sm:text-sm text-slate-600 leading-relaxed font-medium">
+                      Estudar transforma atendimentos! Na psicopedagogia, estar em constante atualização é essencial para oferecer intervenções mais assertivas, criativas e eficazes. Cada curso, leitura e troca de experiência amplia nosso olhar e nos permite criar estratégias personalizadas, respeitando o ritmo e a necessidade de cada paciente.
+                    </p>
+                    <p className="text-xs sm:text-sm text-[#1070ca] font-bold">
+                      💡 Investir em conhecimento é investir no sucesso de quem atendemos.
+                    </p>
+                  </div>
+
+                  <div className="space-y-3 pt-4 border-t border-slate-100">
+                    <h4 className="text-xs font-bold text-slate-900 uppercase tracking-wide">Terapia infantil</h4>
+                    <p className="text-xs sm:text-sm text-slate-600 leading-relaxed font-medium">
+                      Terapia infantil é muito mais do que apenas brincar. É um espaço seguro onde a criança consegue expressar, através do brincar, aquilo que ainda não sabe colocar em palavras. É acolhimento, escuta e cuidado com cada fase do desenvolvimento, respeitando o tempo e a individualidade de cada criança. É onde emoções são compreendidas, vínculos são fortalecidos e o crescer se torna mais leve e saudável. 💛
+                    </p>
+                  </div>
+
+                  <a
+                    href="https://www.instagram.com/espacoaprenderaser1/"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-2 text-xs font-bold text-[#d43f72] hover:text-[#a12b53] transition-colors pt-2"
+                  >
+                    @espacoaprenderaser1 no Instagram →
+                  </a>
                 </div>
 
               </div>
@@ -1133,11 +1280,19 @@ export default function LandingPage({ onEnterSystem }: LandingPageProps) {
             <h4 className="font-display font-extrabold text-sm text-slate-900 leading-none">Espaço Aprender a Ser</h4>
             <p className="text-[10px] text-slate-400 font-mono tracking-wider uppercase mt-1">Clínica Multidisciplinar de Neurodesenvolvimento Infantil • Tatuí-SP</p>
           </div>
-          <div className="flex items-center gap-1.5 text-xs font-bold text-slate-500">
-            <span>Responsável Técnica: Francine Maria Tersi</span>
-          </div>
         </div>
         <p className="text-[10px] text-slate-400 font-mono text-center mt-6">© 2026 Espaço Aprender a Ser. Todos os direitos reservados. Rigor científico e acolhimento humano.</p>
+        <p className="text-[10px] text-slate-400 font-mono text-center mt-2">
+          Desenvolvido por{" "}
+          <a
+            href="https://develoi.com.br"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-[#1070ca] hover:text-[#0b5194] font-bold transition-colors"
+          >
+            Develoi Soluções Digitais
+          </a>
+        </p>
       </footer>
 
     </div>

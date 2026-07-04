@@ -1,10 +1,9 @@
 import React, { useState } from "react";
 import { Search, Compass, BookOpen, Star, Sparkles, Filter } from "lucide-react";
-import { ActivityCard } from "../types";
-import { initialActivityCards } from "../mockData";
+import { useActivities } from "../hooks/useActivities";
 
 export default function ActivityBankModule() {
-  const [activities] = useState<ActivityCard[]>(initialActivityCards);
+  const { activities, loading, error } = useActivities();
   const [searchQuery, setSearchQuery] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("todos");
 
@@ -30,6 +29,17 @@ export default function ActivityBankModule() {
         </h2>
         <p className="text-xs text-slate-500 font-medium font-sans">Explore materiais de estimulação multissensorial, fichas dirigidas de alfabetização e estratégias psicopedagógicas prontas para uso.</p>
       </div>
+
+      {loading && (
+        <div className="p-3 bg-blue-50/50 border border-blue-100 rounded-2xl text-xs text-slate-600 font-medium">
+          Carregando banco de atividades...
+        </div>
+      )}
+      {error && (
+        <div className="p-3 bg-red-50 border border-red-200 rounded-2xl text-xs text-red-700 font-bold">
+          {error}
+        </div>
+      )}
 
       {/* Filters Toolbar */}
       <div className="flex flex-col md:flex-row gap-4 items-stretch md:items-center">

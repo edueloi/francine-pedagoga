@@ -1,7 +1,12 @@
-import React, { useState } from "react";
-import { User, Calendar, Phone, Heart, PlusCircle, Search, Trash2, Filter, Upload, Paperclip, ChevronRight, History, FileText, CheckSquare, Save, CreditCard, Users, ShieldCheck, FilePlus } from "lucide-react";
+﻿import React, { useState } from "react";
+import { User, Calendar, Heart, PlusCircle, Search, Trash2, Filter, Upload, Paperclip, ChevronRight, History, FileText, CheckSquare, Save, CreditCard, Users, Pencil, Loader2, Share2 } from "lucide-react";
 import { Patient, PatientStatus, Anamnese, TimelineItem, UserRole, UserPermissions } from "../types";
-import { initialAnamneses, initialTimeline } from "../mockData";
+import { useAuth } from "../contexts/AuthContext";
+import { patientFromApi, patientToApi } from "../lib/apiMappers";
+import { WizardModal, DocFile } from "./Patient/PatientFormWizard";
+import { useAnamneses } from "../hooks/useAnamneses";
+import { useTimeline } from "../hooks/useTimeline";
+import { useToast, ConfirmModal } from "./UI";
 
 interface PatientsModuleProps {
   patients: Patient[];
@@ -18,16 +23,18 @@ export default function PatientsModule({
   selectedPatientId,
   userPermissions
 }: PatientsModuleProps) {
+  const { authFetch } = useAuth();
+  const toast = useToast();
   const canCreate = userPermissions ? userPermissions.patients.criar : (userRole !== UserRole.RESTRICTED);
   const canEdit = userPermissions ? userPermissions.patients.editar : (userRole !== UserRole.RESTRICTED);
   const canDelete = userPermissions ? userPermissions.patients.excluir : (userRole === UserRole.ADMIN);
 
-  const [activeTab, setActiveTab] = useState<"list" | "detail" | "add">("list");
+  const [activeTab, setActiveTab] = useState<"list" | "detail">("list");
   const [selectedPat, setSelectedPat] = useState<Patient | null>(
     selectedPatientId ? patients.find(p => p.id === selectedPatientId) || null : patients[0]
   );
-  const [anamneses, setAnamneses] = useState<Anamnese[]>(initialAnamneses);
-  const [timeline, setTimeline] = useState<TimelineItem[]>(initialTimeline);
+  const { anamneses, saveAnamnese } = useAnamneses();
+  const { timeline, addTimelineItem } = useTimeline(selectedPat?.id);
   const [detailTab, setDetailTab] = useState<"cadastro" | "anamnese" | "documentos" | "timeline">("cadastro");
 
   // Search and Filter States
@@ -35,33 +42,14 @@ export default function PatientsModule({
   const [statusFilter, setStatusFilter] = useState<string>("todos");
   const [diagFilter, setDiagFilter] = useState<string>("todos");
 
-  // New Patient Form States
-  const [newNome, setNewNome] = useState("");
-  const [newDataNascimento, setNewDataNascimento] = useState("");
-  const [newResponsavel, setNewResponsavel] = useState("");
-  const [newResponsavelParentesco, setNewResponsavelParentesco] = useState("Mãe");
-  const [newResponsavelCpf, setNewResponsavelCpf] = useState("");
-  const [newResponsavelFinanceiroNome, setNewResponsavelFinanceiroNome] = useState("");
-  const [newResponsavelFinanceiroCpf, setNewResponsavelFinanceiroCpf] = useState("");
-  const [newResponsavelFinanceiroTelefone, setNewResponsavelFinanceiroTelefone] = useState("");
-  const [newTipoPagamento, setNewTipoPagamento] = useState<"Particular" | "Convênio">("Particular");
-  const [newConvenioCarteirinha, setNewConvenioCarteirinha] = useState("");
-  const [newConvenioValidade, setNewConvenioValidade] = useState("");
-  const [newFoto, setNewFoto] = useState("🧸");
-  const [newTelefone, setNewTelefone] = useState("");
-  const [newEscola, setNewEscola] = useState("");
-  const [newAnoSerie, setNewAnoSerie] = useState("");
-  const [newProfessor, setNewProfessor] = useState("");
-  const [newCoordenador, setNewCoordenador] = useState("");
-  const [newMedico, setNewMedico] = useState("");
-  const [newDiagnostico, setNewDiagnostico] = useState("");
-  const [newCid, setNewCid] = useState("");
-  const [newConvenio, setNewConvenio] = useState("");
-  const [newMedicamentos, setNewMedicamentos] = useState("");
-  const [newHistorico, setNewHistorico] = useState("");
+  // Wizard (criação/edição de paciente)
+  const [wizardOpen, setWizardOpen] = useState(false);
+  const [wizardInitialData, setWizardInitialData] = useState<Partial<Patient> | undefined>(undefined);
+  const [wizardSaving, setWizardSaving] = useState(false);
 
   // Detailed Anamnese Editor state
   const [editingAnamnese, setEditingAnamnese] = useState<Anamnese | null>(null);
+  const [sendingShareLink, setSendingShareLink] = useState(false);
 
   // Document Upload Simulator
   const [simulatedDocName, setSimulatedDocName] = useState("");
@@ -72,147 +60,161 @@ export default function PatientsModule({
   const [timelineDesc, setTimelineDesc] = useState("");
   const [timelineType, setTimelineType] = useState<TimelineItem["tipo"]>("Visita Escolar");
 
-  const calculateAge = (dobString: string): number => {
-    if (!dobString) return 0;
-    const dob = new Date(dobString);
-    const diffMs = Date.now() - dob.getTime();
-    const ageDate = new Date(diffMs);
-    return Math.abs(ageDate.getUTCFullYear() - 1970);
+  // Confirm modals state
+  const [confirmArchiveOpen, setConfirmArchiveOpen] = useState(false);
+  const [pendingArchiveId, setPendingArchiveId] = useState<string | null>(null);
+  const [confirmDeleteDocOpen, setConfirmDeleteDocOpen] = useState(false);
+  const [pendingDeleteDoc, setPendingDeleteDoc] = useState<{ docId: string; isParentDoc: boolean } | null>(null);
+
+  // ─── Wizard: abertura para criação / edição ────────────────────────────
+  const openCreateWizard = () => {
+    setWizardInitialData(undefined);
+    setWizardOpen(true);
   };
 
-  const handleCreatePatient = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!newNome || !newDataNascimento) return;
-
-    const age = calculateAge(newDataNascimento);
-    const newPat: Patient = {
-      id: `pat-${Date.now()}`,
-      nome: newNome,
-      dataNascimento: newDataNascimento,
-      idade: age,
-      foto: newFoto,
-      responsavel: newResponsavel,
-      responsavelParentesco: newResponsavelParentesco,
-      responsavelCpf: newResponsavelCpf,
-      responsavelFinanceiroNome: newResponsavelFinanceiroNome || newResponsavel,
-      responsavelFinanceiroCpf: newResponsavelFinanceiroCpf || newResponsavelCpf,
-      responsavelFinanceiroTelefone: newResponsavelFinanceiroTelefone || newTelefone,
-      tipoPagamento: newTipoPagamento,
-      convenioCarteirinha: newConvenioCarteirinha,
-      convenioValidade: newConvenioValidade,
-      telefone: newTelefone,
-      escola: newEscola,
-      anoSerie: newAnoSerie,
-      professor: newProfessor,
-      coordenador: newCoordenador,
-      medico: newMedico,
-      diagnostico: newDiagnostico || "Avaliação Multidisciplinar",
-      cid: newCid || "N/A",
-      convenio: newConvenio || (newTipoPagamento === "Particular" ? "Particular" : "A preencher"),
-      medicamentos: newMedicamentos || "Nenhum",
-      historicoClinico: newHistorico || "Nenhuma intercorrência relatada.",
-      documentos: [],
-      documentosPais: [],
-      dataInicio: new Date().toISOString().split("T")[0],
-      status: PatientStatus.ACTIVE
-    };
-
-    const updatedList = [newPat, ...patients];
-    onUpdatePatients(updatedList);
-    
-    // Automatically create a blank Anamnese template for this patient
-    const blankAnamnese: Anamnese = {
-      patientId: newPat.id,
-      queixaPrincipal: "Aguardando preenchimento.",
-      historiaGestacional: "",
-      marcosDesenvolvimento: "",
-      linguagem: "",
-      sono: "",
-      alimentacaoSeletividade: "",
-      controleEsfincteriano: "",
-      historicoMedico: "",
-      medicamentos: newPat.medicamentos,
-      terapiasAtuais: "",
-      comportamentoCasa: "",
-      comportamentoEscola: "",
-      interessesHiperfocos: "",
-      sensibilidadesSensoriais: "",
-      pontosFortes: "",
-      principaisDificuldades: "",
-      objetivosFamilia: ""
-    };
-    setAnamneses([...anamneses, blankAnamnese]);
-
-    // Create a timeline item of patient admission
-    const initTimelineItem: TimelineItem = {
-      id: `tl-${Date.now()}`,
-      patientId: newPat.id,
-      data: newPat.dataInicio,
-      tipo: "Avaliação",
-      titulo: "Admissão Clínico-Social",
-      descricao: "Paciente admitido na clínica Espaço Aprender a Ser para acompanhamento.",
-      profissional: "Francine Maria Tersi"
-    };
-    setTimeline([initTimelineItem, ...timeline]);
-
-    // Clean form and focus on the new patient
-    setSelectedPat(newPat);
-    setDetailTab("cadastro");
-    setActiveTab("detail");
-    clearForm();
+  const openEditWizard = (patient: Patient) => {
+    setWizardInitialData(patient);
+    setWizardOpen(true);
   };
 
-  const clearForm = () => {
-    setNewNome("");
-    setNewDataNascimento("");
-    setNewResponsavel("");
-    setNewResponsavelParentesco("Mãe");
-    setNewResponsavelCpf("");
-    setNewResponsavelFinanceiroNome("");
-    setNewResponsavelFinanceiroCpf("");
-    setNewResponsavelFinanceiroTelefone("");
-    setNewTipoPagamento("Particular");
-    setNewConvenioCarteirinha("");
-    setNewConvenioValidade("");
-    setNewFoto("🧸");
-    setNewTelefone("");
-    setNewEscola("");
-    setNewAnoSerie("");
-    setNewProfessor("");
-    setNewCoordenador("");
-    setNewMedico("");
-    setNewDiagnostico("");
-    setNewCid("");
-    setNewConvenio("");
-    setNewMedicamentos("");
-    setNewHistorico("");
+  // Persiste o paciente (criação ou edição) via API real, mais os metadados
+  // de documentos selecionados (apenas nome — ver aviso na etapa de Documentos
+  // do wizard: o armazenamento do arquivo em si ainda não está implementado).
+  const handleWizardSave = async (data: Partial<Patient>, files: DocFile[], photoFile?: File | null) => {
+    setWizardSaving(true);
+    try {
+      const isEdit = !!data.id;
+      const body = JSON.stringify(patientToApi(data));
+      const res = await authFetch(isEdit ? `/api/patients/${data.id}` : "/api/patients", {
+        method: isEdit ? "PUT" : "POST",
+        body,
+      });
+      if (!res.ok) throw new Error("Falha ao salvar paciente");
+      const row = await res.json();
+      const savedPatient = patientFromApi(row);
+
+      // Metadados dos documentos selecionados nesta sessão do wizard.
+      // NOTA: apenas o nome do arquivo é persistido (tabela patient_documents);
+      // não há upload/armazenamento real do arquivo ainda.
+      for (const doc of files) {
+        try {
+          await authFetch("/api/patient-documents", {
+            method: "POST",
+            body: JSON.stringify({ patient_id: savedPatient.id, nome: doc.label || doc.file.name, tipo: "medico" }),
+          });
+        } catch {
+          // Falha ao registrar um documento não deve impedir o salvamento do paciente.
+        }
+      }
+
+      const updatedList = isEdit
+        ? patients.map(p => (p.id === savedPatient.id ? savedPatient : p))
+        : [savedPatient, ...patients];
+      onUpdatePatients(updatedList);
+
+      if (!isEdit) {
+        // Cria um template de anamnese em branco e um evento de admissão na
+        // linha do tempo, ambos persistidos via API.
+        try {
+          await saveAnamnese({
+            patientId: savedPatient.id,
+            queixaPrincipal: "Aguardando preenchimento.",
+            historiaGestacional: "",
+            marcosDesenvolvimento: "",
+            linguagem: "",
+            sono: "",
+            alimentacaoSeletividade: "",
+            controleEsfincteriano: "",
+            historicoMedico: "",
+            medicamentos: savedPatient.medicamentos,
+            terapiasAtuais: "",
+            comportamentoCasa: "",
+            comportamentoEscola: "",
+            interessesHiperfocos: "",
+            sensibilidadesSensoriais: "",
+            pontosFortes: "",
+            principaisDificuldades: "",
+            objetivosFamilia: ""
+          });
+        } catch {
+          // Falha ao criar a anamnese em branco não deve impedir o salvamento do paciente.
+        }
+
+        try {
+          await addTimelineItem({
+            patientId: savedPatient.id,
+            data: savedPatient.dataInicio || new Date().toISOString().split("T")[0],
+            tipo: "Avaliação",
+            titulo: "Admissão Clínico-Social",
+            descricao: "Paciente admitido na clínica Espaço Aprender a Ser para acompanhamento.",
+            profissional: "Francine Maria Tersi"
+          });
+        } catch {
+          // Falha ao registrar o evento inicial não deve impedir o salvamento do paciente.
+        }
+      }
+
+      setSelectedPat(savedPatient);
+      setDetailTab("cadastro");
+      setActiveTab("detail");
+      setWizardOpen(false);
+    } catch (err) {
+      console.error(err);
+      toast.error("Não foi possível salvar o paciente. Tente novamente.");
+    } finally {
+      setWizardSaving(false);
+    }
   };
 
   const handleDeletePatient = (id: string, e: React.MouseEvent) => {
     e.stopPropagation();
-    if (confirm("Deseja realmente arquivar este prontuário? Os dados históricos serão preservados.")) {
-      const updated = patients.map(p => {
-        if (p.id === id) {
-          return { ...p, status: PatientStatus.CLOSED };
-        }
-        return p;
+    setPendingArchiveId(id);
+    setConfirmArchiveOpen(true);
+  };
+
+  const handleConfirmArchive = async () => {
+    const id = pendingArchiveId;
+    if (!id) return;
+    const target = patients.find(p => p.id === id);
+    if (!target) return;
+    try {
+      const res = await authFetch(`/api/patients/${id}`, {
+        method: "PUT",
+        body: JSON.stringify(patientToApi({ ...target, status: PatientStatus.CLOSED })),
       });
+      if (!res.ok) throw new Error("Falha ao arquivar paciente");
+      const row = await res.json();
+      const updatedPatient = patientFromApi(row);
+      const updated = patients.map(p => (p.id === id ? updatedPatient : p));
       onUpdatePatients(updated);
-      if (selectedPat?.id === id) {
-        setSelectedPat(updated.find(p => p.id === id) || null);
-      }
+      if (selectedPat?.id === id) setSelectedPat(updatedPatient);
+      setConfirmArchiveOpen(false);
+      setPendingArchiveId(null);
+      toast.success("Prontuário arquivado com sucesso.");
+    } catch (err) {
+      console.error(err);
+      toast.error("Não foi possível arquivar o prontuário. Tente novamente.");
     }
   };
 
-  const handleUpdateStatus = (id: string, status: PatientStatus) => {
-    const updated = patients.map(p => {
-      if (p.id === id) {
-        return { ...p, status };
-      }
-      return p;
-    });
-    onUpdatePatients(updated);
-    setSelectedPat(updated.find(p => p.id === id) || null);
+  const handleUpdateStatus = async (id: string, status: PatientStatus) => {
+    const target = patients.find(p => p.id === id);
+    if (!target) return;
+    try {
+      const res = await authFetch(`/api/patients/${id}`, {
+        method: "PUT",
+        body: JSON.stringify(patientToApi({ ...target, status })),
+      });
+      if (!res.ok) throw new Error("Falha ao atualizar status");
+      const row = await res.json();
+      const updatedPatient = patientFromApi(row);
+      const updated = patients.map(p => (p.id === id ? updatedPatient : p));
+      onUpdatePatients(updated);
+      setSelectedPat(updatedPatient);
+    } catch (err) {
+      console.error(err);
+      toast.error("Não foi possível atualizar o status do paciente.");
+    }
   };
 
   // Simulates uploading files safely in the browser session
@@ -240,16 +242,14 @@ export default function PatientsModule({
     setSelectedPat(updatedPatients.find(p => p.id === selectedPat.id) || null);
 
     // Timeline update
-    const tlDoc: TimelineItem = {
-      id: `tl-${Date.now()}`,
+    addTimelineItem({
       patientId: selectedPat.id,
       data: newDoc.dataUpload,
       tipo: "Documento",
       titulo: `Documento Anexado: ${newDoc.nome}`,
       descricao: "Arquivo clínico adicionado com sucesso ao banco criptografado do prontuário.",
       profissional: "Francine Maria Tersi"
-    };
-    setTimeline([tlDoc, ...timeline]);
+    }).catch(() => {});
     setSimulatedDocName("");
   };
 
@@ -278,86 +278,107 @@ export default function PatientsModule({
     setSelectedPat(updatedPatients.find(p => p.id === selectedPat.id) || null);
 
     // Timeline update
-    const tlDoc: TimelineItem = {
-      id: `tl-${Date.now()}`,
+    addTimelineItem({
       patientId: selectedPat.id,
       data: newDoc.dataUpload,
       tipo: "Documento",
       titulo: `Doc. Responsável Anexado: ${newDoc.nome}`,
       descricao: "Documento pessoal do responsável (RG/CPF ou comprovante) arquivado com segurança.",
       profissional: "Francine Maria Tersi"
-    };
-    setTimeline([tlDoc, ...timeline]);
+    }).catch(() => {});
     setSimulatedParentDocName("");
   };
 
   const handleDeleteDoc = (docId: string, isParentDoc: boolean = false) => {
     if (!selectedPat) return;
-    if (confirm("Deseja realmente remover este documento?")) {
-      const updatedPatients = patients.map(p => {
-        if (p.id === selectedPat.id) {
-          if (isParentDoc) {
-            const docList = p.documentosPais || [];
-            return {
-              ...p,
-              documentosPais: docList.filter(d => d.id !== docId)
-            };
-          } else {
-            return {
-              ...p,
-              documentos: p.documentos.filter(d => d.id !== docId)
-            };
-          }
-        }
-        return p;
-      });
-      onUpdatePatients(updatedPatients);
-      setSelectedPat(updatedPatients.find(p => p.id === selectedPat.id) || null);
-    }
+    setPendingDeleteDoc({ docId, isParentDoc });
+    setConfirmDeleteDocOpen(true);
   };
 
-  const handleSaveAnamnese = (e: React.FormEvent) => {
+  const handleConfirmDeleteDoc = () => {
+    if (!selectedPat || !pendingDeleteDoc) return;
+    const { docId, isParentDoc } = pendingDeleteDoc;
+    const updatedPatients = patients.map(p => {
+      if (p.id === selectedPat.id) {
+        if (isParentDoc) {
+          const docList = p.documentosPais || [];
+          return {
+            ...p,
+            documentosPais: docList.filter(d => d.id !== docId)
+          };
+        } else {
+          return {
+            ...p,
+            documentos: p.documentos.filter(d => d.id !== docId)
+          };
+        }
+      }
+      return p;
+    });
+    onUpdatePatients(updatedPatients);
+    setSelectedPat(updatedPatients.find(p => p.id === selectedPat.id) || null);
+    setConfirmDeleteDocOpen(false);
+    setPendingDeleteDoc(null);
+  };
+
+  const handleSaveAnamnese = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingAnamnese) return;
 
-    const updatedList = anamneses.map(a => {
-      if (a.patientId === editingAnamnese.patientId) {
-        return editingAnamnese;
-      }
-      return a;
-    });
-    setAnamneses(updatedList);
-    setEditingAnamnese(null);
+    try {
+      await saveAnamnese(editingAnamnese);
+      setEditingAnamnese(null);
 
-    // Save Timeline notification
-    const tlItem: TimelineItem = {
-      id: `tl-${Date.now()}`,
-      patientId: editingAnamnese.patientId,
-      data: new Date().toISOString().split("T")[0],
-      tipo: "Avaliação",
-      titulo: "Anamnese Atualizada",
-      descricao: "Histórico clínico e marcos do desenvolvimento foram revisados e atualizados pela terapeuta.",
-      profissional: "Francine Maria Tersi"
-    };
-    setTimeline([tlItem, ...timeline]);
-    alert("Anamnese atualizada com sucesso!");
+      // Save Timeline notification
+      await addTimelineItem({
+        patientId: editingAnamnese.patientId,
+        data: new Date().toISOString().split("T")[0],
+        tipo: "Avaliação",
+        titulo: "Anamnese Atualizada",
+        descricao: "Histórico clínico e marcos do desenvolvimento foram revisados e atualizados pela terapeuta.",
+        profissional: "Francine Maria Tersi"
+      });
+      toast.success("Anamnese atualizada com sucesso!");
+    } catch (err) {
+      console.error(err);
+      toast.error("Não foi possível salvar a anamnese. Tente novamente.");
+    }
   };
 
-  const handleAddTimelineItem = (e: React.FormEvent) => {
+  // Gera (ou reaproveita, se já existir) o link público de preenchimento da anamnese
+  // pelos pais e copia para a área de transferência.
+  const handleSendAnamneseShareLink = async () => {
+    if (!selectedPat) return;
+    setSendingShareLink(true);
+    try {
+      const res = await authFetch(`/api/patients/${selectedPat.id}/anamnese-share-link`, {
+        method: "POST",
+      });
+      if (!res.ok) throw new Error("Falha ao gerar link de compartilhamento");
+      const { url } = await res.json();
+      const fullUrl = `${window.location.origin}${url}`;
+      await navigator.clipboard.writeText(fullUrl);
+      toast.success("Link copiado! Envie para os pais preencherem a anamnese.");
+    } catch (err) {
+      console.error(err);
+      toast.error("Não foi possível gerar o link de compartilhamento. Tente novamente.");
+    } finally {
+      setSendingShareLink(false);
+    }
+  };
+
+  const handleAddTimelineItem = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedPat || !timelineTitle.trim()) return;
 
-    const newItem: TimelineItem = {
-      id: `tl-${Date.now()}`,
+    await addTimelineItem({
       patientId: selectedPat.id,
       data: new Date().toISOString().split("T")[0],
       tipo: timelineType,
       titulo: timelineTitle,
       descricao: timelineDesc || "Não fornecido.",
       profissional: "Francine Maria Tersi"
-    };
-
-    setTimeline([newItem, ...timeline]);
+    }).catch(() => {});
     setTimelineTitle("");
     setTimelineDesc("");
   };
@@ -411,17 +432,21 @@ export default function PatientsModule({
           )}
           {canCreate && (
             <button
-              onClick={() => {
-                clearForm();
-                setActiveTab("add");
-              }}
-              className={`px-4 py-2 text-xs font-bold rounded-lg border cursor-pointer flex items-center gap-1.5 transition-all duration-150 ${activeTab === "add" ? "bg-[#d43f72] text-white border-[#d43f72]" : "bg-pink-50 text-[#d43f72] border-pink-100 hover:bg-pink-100/50"}`}
+              onClick={openCreateWizard}
+              className="px-4 py-2 text-xs font-bold rounded-lg border cursor-pointer flex items-center gap-1.5 transition-all duration-150 bg-pink-50 text-[#d43f72] border-pink-100 hover:bg-pink-100/50"
             >
               <PlusCircle className="h-3.5 w-3.5" /> Admitir Novo
             </button>
           )}
         </div>
       </div>
+
+      <WizardModal
+        isOpen={wizardOpen}
+        onClose={() => !wizardSaving && setWizardOpen(false)}
+        initialData={wizardInitialData}
+        onSave={handleWizardSave}
+      />
 
       {/* Tab: Patients Directory List */}
       {activeTab === "list" && (
@@ -583,6 +608,16 @@ export default function PatientsModule({
                 <p className="text-xs text-slate-400 mt-1 font-semibold">Dossiê: <span className="font-mono text-[11px] font-bold text-slate-600 bg-slate-100 px-1.5 py-0.5 rounded">{selectedPat.id}</span></p>
               </div>
 
+              {canEdit && (
+                <button
+                  type="button"
+                  onClick={() => openEditWizard(selectedPat)}
+                  className="w-full flex items-center justify-center gap-1.5 px-3 py-2 bg-blue-50 text-[#1070ca] border border-blue-100 rounded-xl text-xs font-black uppercase tracking-wider hover:bg-blue-100/60 transition cursor-pointer"
+                >
+                  <Pencil className="h-3.5 w-3.5" /> Editar Prontuário
+                </button>
+              )}
+
               <div className="flex justify-center gap-1.5">
                 <select
                   value={selectedPat.status}
@@ -719,31 +754,47 @@ export default function PatientsModule({
                       Anamnese Clínico-Pedagógica
                     </h4>
                     {canEdit && (
-                      <button
-                        onClick={() => {
-                          if (selectedAnamnese) {
-                            setEditingAnamnese({ ...selectedAnamnese });
-                          } else {
-                            // fallback structure
-                            setEditingAnamnese({
-                              patientId: selectedPat.id,
-                              queixaPrincipal: "Aguardando preenchimento",
-                              historiaGestacional: "",
-                              marcosDesenvolvimento: "",
-                              linguagem: "",
-                              sono: "",
-                              alimentacaoSeletividade: "",
-                              controleEsfincteriano: "",
-                              historicoMedico: "",
-                              medicamentos: selectedPat.medicamentos || "",
-                              terapiasAtuais: ""
-                            });
-                          }
-                        }}
-                        className={`text-xs font-black uppercase px-3 py-1.5 rounded-lg border tracking-wider cursor-pointer transition-colors ${editingAnamnese ? "bg-slate-100 text-slate-500 border-slate-200" : "bg-blue-50 text-[#1070ca] border-blue-200 hover:bg-blue-100"}`}
-                      >
-                        {editingAnamnese ? "✏️ Editando..." : "✏️ Editar Histórico Clínico"}
-                      </button>
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={handleSendAnamneseShareLink}
+                          disabled={sendingShareLink}
+                          className="text-xs font-black uppercase px-3 py-1.5 rounded-lg border tracking-wider cursor-pointer transition-colors flex items-center gap-1.5 bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100 disabled:opacity-60 disabled:cursor-wait"
+                          title="Gera um link público para os pais preencherem a anamnese sem precisar de login"
+                        >
+                          {sendingShareLink ? (
+                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                          ) : (
+                            <Share2 className="h-3.5 w-3.5" />
+                          )}
+                          Enviar para os pais preencherem
+                        </button>
+                        <button
+                          onClick={() => {
+                            if (selectedAnamnese) {
+                              setEditingAnamnese({ ...selectedAnamnese });
+                            } else {
+                              // fallback structure
+                              setEditingAnamnese({
+                                patientId: selectedPat.id,
+                                queixaPrincipal: "Aguardando preenchimento",
+                                historiaGestacional: "",
+                                marcosDesenvolvimento: "",
+                                linguagem: "",
+                                sono: "",
+                                alimentacaoSeletividade: "",
+                                controleEsfincteriano: "",
+                                historicoMedico: "",
+                                medicamentos: selectedPat.medicamentos || "",
+                                terapiasAtuais: ""
+                              });
+                            }
+                          }}
+                          className={`text-xs font-black uppercase px-3 py-1.5 rounded-lg border tracking-wider cursor-pointer transition-colors ${editingAnamnese ? "bg-slate-100 text-slate-500 border-slate-200" : "bg-blue-50 text-[#1070ca] border-blue-200 hover:bg-blue-100"}`}
+                        >
+                          {editingAnamnese ? "✏️ Editando..." : "✏️ Editar Histórico Clínico"}
+                        </button>
+                      </div>
                     )}
                   </div>
 
@@ -1179,356 +1230,27 @@ export default function PatientsModule({
         </div>
       )}
 
-      {/* Tab: Add Patient Form */}
-      {activeTab === "add" && (
-        <div className="bg-white rounded-3xl border border-slate-100 shadow-md p-8 max-w-4xl mx-auto text-left animate-fade-in">
-          <div className="flex items-center gap-2 border-b border-slate-100 pb-4 mb-6">
-            <span className="p-2 bg-pink-50 text-[#d43f72] rounded-xl">
-              <FilePlus className="h-5 w-5" />
-            </span>
-            <div>
-              <h3 className="font-display font-black text-slate-900 text-base uppercase tracking-wider">
-                Admissão de Novo Aluno (Prontuário de Entrada)
-              </h3>
-              <p className="text-xs text-slate-400 font-semibold">Preencha os dados clínicos, sociais, pedagógicos e de faturamento do paciente menor de idade.</p>
-            </div>
-          </div>
+      <ConfirmModal
+        isOpen={confirmArchiveOpen}
+        onClose={() => setConfirmArchiveOpen(false)}
+        onConfirm={handleConfirmArchive}
+        title="Arquivar prontuário?"
+        message="Os dados históricos serão preservados e você poderá consultá-los futuramente."
+        confirmLabel="Arquivar"
+        cancelLabel="Cancelar"
+        variant="primary"
+      />
 
-          <form onSubmit={handleCreatePatient} className="space-y-8">
-            {/* Seção 1: Dados do Aluno */}
-            <div className="space-y-4">
-              <h4 className="text-[10px] font-black uppercase tracking-widest text-[#1070ca] flex items-center gap-1.5 border-b border-slate-50 pb-1.5">
-                <User className="h-3.5 w-3.5" /> 1. Identificação Geral do Paciente
-              </h4>
-              <div className="grid sm:grid-cols-3 gap-4">
-                <div className="sm:col-span-2">
-                  <label className="block text-[10px] font-black uppercase text-slate-500 mb-1">Nome Completo do Aluno / Criança *</label>
-                  <input
-                    type="text"
-                    required
-                    value={newNome}
-                    onChange={(e) => setNewNome(e.target.value)}
-                    placeholder="Ex: Lucas Silva de Oliveira"
-                    className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-semibold text-slate-700 focus:outline-none focus:ring-1 focus:ring-[#1070ca] focus:bg-white transition-all"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-[10px] font-black uppercase text-slate-500 mb-1">Data de Nascimento *</label>
-                  <input
-                    type="date"
-                    required
-                    value={newDataNascimento}
-                    onChange={(e) => setNewDataNascimento(e.target.value)}
-                    className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-semibold text-slate-700 focus:outline-none focus:ring-1 focus:ring-[#1070ca] focus:bg-white transition-all"
-                  />
-                </div>
-
-                <div className="sm:col-span-3 bg-blue-50/20 border border-blue-100 p-4 rounded-2xl">
-                  <label className="block text-[10px] font-black uppercase text-slate-500 mb-2">Selecione o Avatar / Foto de Prontuário:</label>
-                  <div className="flex flex-wrap gap-2">
-                    {["🧸", "🦖", "🦄", "🎨", "⚽", "🚀", "🐱", "🐶", "🦸", "🧩"].map((emoji) => (
-                      <button
-                        key={emoji}
-                        type="button"
-                        onClick={() => setNewFoto(emoji)}
-                        className={`w-10 h-10 text-xl rounded-xl flex items-center justify-center transition border ${newFoto === emoji ? "bg-white shadow-md border-blue-400 scale-110 font-bold" : "bg-transparent border-slate-100 hover:bg-white"}`}
-                      >
-                        {emoji}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Seção 2: Responsáveis e Filiação */}
-            <div className="space-y-4">
-              <h4 className="text-[10px] font-black uppercase tracking-widest text-[#1070ca] flex items-center gap-1.5 border-b border-slate-50 pb-1.5">
-                <Users className="h-3.5 w-3.5" /> 2. Filiação e Responsabilidade Social (Contato)
-              </h4>
-              <div className="grid sm:grid-cols-2 md:grid-cols-4 gap-4">
-                <div className="md:col-span-2">
-                  <label className="block text-[10px] font-black uppercase text-slate-500 mb-1">Nome do Responsável Legal *</label>
-                  <input
-                    type="text"
-                    required
-                    value={newResponsavel}
-                    onChange={(e) => setNewResponsavel(e.target.value)}
-                    placeholder="Ex: Mariana Silva de Oliveira"
-                    className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-semibold text-slate-700 focus:outline-none focus:ring-1 focus:ring-[#1070ca] focus:bg-white transition-all"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-[10px] font-black uppercase text-slate-500 mb-1">Grau de Parentesco *</label>
-                  <select
-                    value={newResponsavelParentesco}
-                    onChange={(e) => setNewResponsavelParentesco(e.target.value)}
-                    className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-semibold text-slate-700 focus:outline-none focus:ring-1 focus:ring-[#1070ca] focus:bg-white cursor-pointer"
-                  >
-                    <option value="Mãe">Mãe</option>
-                    <option value="Pai">Pai</option>
-                    <option value="Avó">Avó</option>
-                    <option value="Avô">Avô</option>
-                    <option value="Tio/Tia">Tio/Tia</option>
-                    <option value="Cuidador/Tutor">Cuidador / Tutor Legal</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-[10px] font-black uppercase text-slate-500 mb-1">CPF do Responsável *</label>
-                  <input
-                    type="text"
-                    required
-                    value={newResponsavelCpf}
-                    onChange={(e) => setNewResponsavelCpf(e.target.value)}
-                    placeholder="Ex: 123.456.789-00"
-                    className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-semibold text-slate-700 focus:outline-none focus:ring-1 focus:ring-[#1070ca] focus:bg-white transition-all"
-                  />
-                </div>
-
-                <div className="sm:col-span-2">
-                  <label className="block text-[10px] font-black uppercase text-slate-500 mb-1">Telefone WhatsApp Principal *</label>
-                  <input
-                    type="text"
-                    required
-                    value={newTelefone}
-                    onChange={(e) => setNewTelefone(e.target.value)}
-                    placeholder="Ex: (11) 98877-6655"
-                    className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-semibold text-slate-700 focus:outline-none focus:ring-1 focus:ring-[#1070ca] focus:bg-white transition-all"
-                  />
-                </div>
-              </div>
-            </div>
-
-            {/* Seção 3: Responsável Financeiro e Faturamento */}
-            <div className="space-y-4">
-              <h4 className="text-[10px] font-black uppercase tracking-widest text-[#1070ca] flex items-center gap-1.5 border-b border-slate-50 pb-1.5">
-                <CreditCard className="h-3.5 w-3.5" /> 3. Responsabilidade Financeira e Cobrança
-              </h4>
-              <div className="p-4 bg-slate-50/50 rounded-2xl border border-slate-100 space-y-4">
-                <div className="grid sm:grid-cols-3 gap-4">
-                  <div>
-                    <label className="block text-[10px] font-black uppercase text-slate-500 mb-1">Tipo de Atendimento *</label>
-                    <select
-                      value={newTipoPagamento}
-                      onChange={(e) => setNewTipoPagamento(e.target.value as any)}
-                      className="w-full px-3 py-2.5 bg-white border border-slate-200 rounded-lg text-xs font-semibold text-slate-700 focus:outline-none focus:ring-1 focus:ring-[#1070ca] cursor-pointer"
-                    >
-                      <option value="Particular">Particular</option>
-                      <option value="Convênio">Convênio</option>
-                    </select>
-                  </div>
-
-                  <div className="sm:col-span-2">
-                    <label className="block text-[10px] font-black uppercase text-slate-500 mb-1">Nome Completo do Responsável Financeiro</label>
-                    <input
-                      type="text"
-                      value={newResponsavelFinanceiroNome}
-                      onChange={(e) => setNewResponsavelFinanceiroNome(e.target.value)}
-                      placeholder="Deixe em branco se for igual ao responsável legal"
-                      className="w-full px-3 py-2.5 bg-white border border-slate-200 rounded-lg text-xs font-semibold text-slate-700 focus:outline-none focus:ring-1 focus:ring-[#1070ca]"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-[10px] font-black uppercase text-slate-500 mb-1">CPF Financeiro</label>
-                    <input
-                      type="text"
-                      value={newResponsavelFinanceiroCpf}
-                      onChange={(e) => setNewResponsavelFinanceiroCpf(e.target.value)}
-                      placeholder="Igual ao principal se vazio"
-                      className="w-full px-3 py-2.5 bg-white border border-slate-200 rounded-lg text-xs font-semibold text-slate-700 focus:outline-none focus:ring-1 focus:ring-[#1070ca]"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-[10px] font-black uppercase text-slate-500 mb-1">Telefone do Financeiro</label>
-                    <input
-                      type="text"
-                      value={newResponsavelFinanceiroTelefone}
-                      onChange={(e) => setNewResponsavelFinanceiroTelefone(e.target.value)}
-                      placeholder="Igual ao principal se vazio"
-                      className="w-full px-3 py-2.5 bg-white border border-slate-200 rounded-lg text-xs font-semibold text-slate-700 focus:outline-none focus:ring-1 focus:ring-[#1070ca]"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-[10px] font-black uppercase text-slate-500 mb-1">Operadora do Convênio</label>
-                    <input
-                      type="text"
-                      disabled={newTipoPagamento === "Particular"}
-                      value={newConvenio}
-                      onChange={(e) => setNewConvenio(e.target.value)}
-                      placeholder={newTipoPagamento === "Particular" ? "Particular" : "Ex: Bradesco Saúde"}
-                      className="w-full px-3 py-2.5 bg-white disabled:bg-slate-100 disabled:text-slate-400 border border-slate-200 rounded-lg text-xs font-semibold text-slate-700 focus:outline-none focus:ring-1 focus:ring-[#1070ca]"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-[10px] font-black uppercase text-slate-500 mb-1">Nº Carteirinha Convênio</label>
-                    <input
-                      type="text"
-                      disabled={newTipoPagamento === "Particular"}
-                      value={newConvenioCarteirinha}
-                      onChange={(e) => setNewConvenioCarteirinha(e.target.value)}
-                      placeholder="Ex: 84729013919"
-                      className="w-full px-3 py-2.5 bg-white disabled:bg-slate-100 disabled:text-slate-400 border border-slate-200 rounded-lg text-xs font-semibold text-slate-700 focus:outline-none focus:ring-1 focus:ring-[#1070ca]"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-[10px] font-black uppercase text-slate-500 mb-1">Validade da Carteirinha</label>
-                    <input
-                      type="text"
-                      disabled={newTipoPagamento === "Particular"}
-                      value={newConvenioValidade}
-                      onChange={(e) => setNewConvenioValidade(e.target.value)}
-                      placeholder="Ex: 12/2028"
-                      className="w-full px-3 py-2.5 bg-white disabled:bg-slate-100 disabled:text-slate-400 border border-slate-200 rounded-lg text-xs font-semibold text-slate-700 focus:outline-none focus:ring-1 focus:ring-[#1070ca]"
-                    />
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Seção 4: Escola e Informações de Aprendizado */}
-            <div className="space-y-4">
-              <h4 className="text-[10px] font-black uppercase tracking-widest text-[#1070ca] flex items-center gap-1.5 border-b border-slate-50 pb-1.5">
-                🎨 4. Contexto Educacional / Vida Escolar
-              </h4>
-              <div className="grid sm:grid-cols-2 md:grid-cols-4 gap-4">
-                <div className="sm:col-span-2">
-                  <label className="block text-[10px] font-black uppercase text-slate-500 mb-1">Nome da Escola / Colégio</label>
-                  <input
-                    type="text"
-                    value={newEscola}
-                    onChange={(e) => setNewEscola(e.target.value)}
-                    placeholder="Ex: Colégio Anglo Júnior"
-                    className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-semibold text-slate-700 focus:outline-none focus:ring-1 focus:ring-[#1070ca] focus:bg-white transition-all"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-[10px] font-black uppercase text-slate-500 mb-1">Ano / Série Escolar</label>
-                  <input
-                    type="text"
-                    value={newAnoSerie}
-                    onChange={(e) => setNewAnoSerie(e.target.value)}
-                    placeholder="Ex: 2º ano do Ensino Fundamental"
-                    className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-semibold text-slate-700 focus:outline-none focus:ring-1 focus:ring-[#1070ca] focus:bg-white transition-all"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-[10px] font-black uppercase text-slate-500 mb-1">Professor(a) Regente</label>
-                  <input
-                    type="text"
-                    value={newProfessor}
-                    onChange={(e) => setNewProfessor(e.target.value)}
-                    placeholder="Ex: Profa. Juliana Santos"
-                    className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-semibold text-slate-700 focus:outline-none focus:ring-1 focus:ring-[#1070ca] focus:bg-white transition-all"
-                  />
-                </div>
-
-                <div className="sm:col-span-2">
-                  <label className="block text-[10px] font-black uppercase text-slate-500 mb-1">Coordenador(a) Pedagógico(a)</label>
-                  <input
-                    type="text"
-                    value={newCoordenador}
-                    onChange={(e) => setNewCoordenador(e.target.value)}
-                    placeholder="Ex: Márcia Regina de Souza"
-                    className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-semibold text-slate-700 focus:outline-none focus:ring-1 focus:ring-[#1070ca] focus:bg-white transition-all"
-                  />
-                </div>
-              </div>
-            </div>
-
-            {/* Seção 5: Dados Médicos e Histórico Clínico */}
-            <div className="space-y-4">
-              <h4 className="text-[10px] font-black uppercase tracking-widest text-[#1070ca] flex items-center gap-1.5 border-b border-slate-50 pb-1.5">
-                <ShieldCheck className="h-3.5 w-3.5" /> 5. Histórico Clínico e Neuropediatra
-              </h4>
-              <div className="grid sm:grid-cols-3 gap-4">
-                <div>
-                  <label className="block text-[10px] font-black uppercase text-slate-500 mb-1">Médico Responsável / Neuropediatra</label>
-                  <input
-                    type="text"
-                    value={newMedico}
-                    onChange={(e) => setNewMedico(e.target.value)}
-                    placeholder="Ex: Dr. Roberto Albuquerque"
-                    className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-semibold text-slate-700 focus:outline-none focus:ring-1 focus:ring-[#1070ca] focus:bg-white transition-all"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-[10px] font-black uppercase text-slate-500 mb-1">Diagnóstico de Entrada</label>
-                  <input
-                    type="text"
-                    value={newDiagnostico}
-                    onChange={(e) => setNewDiagnostico(e.target.value)}
-                    placeholder="Ex: TEA Nível 1, TDAH"
-                    className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-semibold text-slate-700 focus:outline-none focus:ring-1 focus:ring-[#1070ca] focus:bg-white transition-all"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-[10px] font-black uppercase text-slate-500 mb-1">CID-10 de Entrada</label>
-                  <input
-                    type="text"
-                    value={newCid}
-                    onChange={(e) => setNewCid(e.target.value)}
-                    placeholder="Ex: F84.0"
-                    className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-semibold text-slate-700 focus:outline-none focus:ring-1 focus:ring-[#1070ca] focus:bg-white transition-all"
-                  />
-                </div>
-
-                <div className="col-span-full">
-                  <label className="block text-[10px] font-black uppercase text-slate-500 mb-1">Medicamentos de Uso Contínuo</label>
-                  <input
-                    type="text"
-                    value={newMedicamentos}
-                    onChange={(e) => setNewMedicamentos(e.target.value)}
-                    placeholder="Ex: Risperidona 0.5mg à noite"
-                    className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-semibold text-slate-700 focus:outline-none focus:ring-1 focus:ring-[#1070ca] focus:bg-white transition-all"
-                  />
-                </div>
-
-                <div className="col-span-full">
-                  <label className="block text-[10px] font-black uppercase text-slate-500 mb-1">Resumo das Intercorrências Iniciais (Histórico Clínico)</label>
-                  <textarea
-                    rows={2}
-                    value={newHistorico}
-                    onChange={(e) => setNewHistorico(e.target.value)}
-                    placeholder="Relato sobre o nascimento, fala, intercorrências neurológicas, comportamentos iniciais na escola..."
-                    className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-semibold text-slate-700 focus:outline-none focus:ring-1 focus:ring-[#1070ca] focus:bg-white transition-all"
-                  />
-                </div>
-              </div>
-            </div>
-
-            <div className="flex justify-end gap-3 pt-6 border-t border-slate-100">
-              <button
-                type="button"
-                onClick={() => {
-                  clearForm();
-                  setActiveTab("list");
-                }}
-                className="px-5 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-xl text-xs font-semibold cursor-pointer"
-              >
-                Cancelar
-              </button>
-              <button
-                type="submit"
-                className="px-6 py-2.5 bg-[#d43f72] hover:bg-[#b02f5a] text-white rounded-xl text-xs font-black uppercase tracking-wider transition shadow-md cursor-pointer"
-              >
-                Admitir e Abrir Prontuário
-              </button>
-            </div>
-          </form>
-        </div>
-      )}
+      <ConfirmModal
+        isOpen={confirmDeleteDocOpen}
+        onClose={() => setConfirmDeleteDocOpen(false)}
+        onConfirm={handleConfirmDeleteDoc}
+        title="Remover documento?"
+        message="Este documento será removido permanentemente do prontuário do paciente. Esta ação não pode ser desfeita."
+        confirmLabel="Remover"
+        cancelLabel="Cancelar"
+        variant="danger"
+      />
     </div>
   );
 }

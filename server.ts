@@ -4,10 +4,69 @@ import { createServer as createViteServer } from "vite";
 import { GoogleGenAI } from "@google/genai";
 import dotenv from "dotenv";
 
+import authRoutes from "./backend/routes/auth";
+import usersRoutes from "./backend/routes/users";
+import patientsRoutes from "./backend/routes/patients";
+import patientDocumentsRoutes from "./backend/routes/patientDocuments";
+import anamnesesRoutes from "./backend/routes/anamneses";
+import sessionsRoutes from "./backend/routes/sessions";
+import activitiesRoutes from "./backend/routes/activities";
+import insurancesRoutes from "./backend/routes/insurances";
+import insuranceDocumentsRoutes from "./backend/routes/insuranceDocuments";
+import timelineRoutes from "./backend/routes/timeline";
+import agendaRoutes from "./backend/routes/agenda";
+import agendaWeeklySlotsRoutes from "./backend/routes/agendaWeeklySlots";
+import protocolsRoutes from "./backend/routes/protocols";
+import peiGoalsRoutes from "./backend/routes/peiGoals";
+import auditLogsRoutes from "./backend/routes/auditLogs";
+import formsRoutes, { publicFormsRouter } from "./backend/routes/forms";
+import whatsappRoutes from "./backend/routes/whatsapp";
+import uploadsRoutes from "./backend/routes/uploads";
+import clinicSettingsRoutes, { publicClinicInfoRouter } from "./backend/routes/clinicSettings";
+import { publicAnamneseRouter } from "./backend/routes/anamneseShare";
+import * as whatsappService from "./backend/services/whatsappService";
+import { startReminderScheduler } from "./backend/services/reminderScheduler";
+
 dotenv.config();
 
 const app = express();
 app.use(express.json());
+
+app.use("/api/auth", authRoutes);
+app.use("/api/users", usersRoutes);
+app.use("/api/patients", patientsRoutes);
+app.use("/api/patient-documents", patientDocumentsRoutes);
+app.use("/api/anamneses", anamnesesRoutes);
+app.use("/api/sessions", sessionsRoutes);
+app.use("/api/activities", activitiesRoutes);
+app.use("/api/insurances", insurancesRoutes);
+app.use("/api/insurance-documents", insuranceDocumentsRoutes);
+app.use("/api/timeline", timelineRoutes);
+app.use("/api/agenda", agendaRoutes);
+app.use("/api/agenda-weekly-slots", agendaWeeklySlotsRoutes);
+app.use("/api/protocols", protocolsRoutes);
+app.use("/api/pei-goals", peiGoalsRoutes);
+app.use("/api/audit-logs", auditLogsRoutes);
+app.use("/api/forms", formsRoutes);
+app.use("/api/whatsapp", whatsappRoutes);
+app.use("/api/uploads", uploadsRoutes);
+app.use("/api/clinic-settings", clinicSettingsRoutes);
+
+// Public, no-login share-link endpoints — intentionally mounted WITHOUT authMiddleware.
+// Only exposes the two routes defined in publicFormsRouter (GET form by token, POST a response).
+app.use("/api/public/forms", publicFormsRouter);
+
+// Public, no-login clinic-info endpoint — intentionally mounted WITHOUT authMiddleware.
+// Only exposes name/logoUrl/address/phone (see publicClinicInfoRouter for details).
+app.use("/api/public/clinic-info", publicClinicInfoRouter);
+
+// Public, no-login anamnese share-link endpoints — intentionally mounted WITHOUT
+// authMiddleware. Only exposes the specific patient tied to the token in the URL
+// (see publicAnamneseRouter for details); never leaks other patients' data.
+app.use("/api/public/anamnese", publicAnamneseRouter);
+
+// Serve uploaded files (clinic logo, patient documents, etc.) statically.
+app.use("/uploads", express.static(path.join(process.cwd(), "uploads")));
 
 const PORT = 3000;
 
@@ -312,6 +371,14 @@ async function initializeViteAndListen() {
   app.listen(PORT, "0.0.0.0", () => {
     console.log(`Express server running on port ${PORT}`);
   });
+
+  // Only auto-connect if a previously-authenticated session exists on disk — a fresh
+  // install has no session yet and should wait for staff to scan a QR code from the UI.
+  if (whatsappService.hasStoredSession()) {
+    whatsappService.connect().catch((err) => console.error("[WhatsApp] Falha ao restaurar sessão:", err.message));
+  }
+
+  startReminderScheduler();
 }
 
 initializeViteAndListen();

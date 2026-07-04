@@ -51,6 +51,7 @@ export interface Patient {
 }
 
 export interface Anamnese {
+  id?: string;
   patientId: string;
   queixaPrincipal: string;
   historiaGestacional: string;
@@ -225,6 +226,8 @@ export interface UserPermissions {
   insurances: ModulePermission;
   reports: ModulePermission;
   logs: ModulePermission;
+  forms: ModulePermission;
+  clinicSettings: ModulePermission;
 }
 
 export interface SystemUser {
@@ -238,4 +241,72 @@ export interface SystemUser {
   desc?: string;
 }
 
+// ── Formulários (Forms module) ─────────────────────────────────────────────
+
+export type QuestionType = "text" | "textarea" | "number" | "radio" | "checkbox" | "select";
+
+export interface FormOption {
+  label: string;
+  value: number;
+}
+
+export interface FormQuestion {
+  id: string;
+  type: QuestionType;
+  text: string;
+  required: boolean;
+  options?: FormOption[];
+}
+
+export interface InterpretationRule {
+  id: string;
+  minScore: number;
+  maxScore: number;
+  resultTitle: string;
+  description: string;
+  color: string;
+}
+
+export interface FormTheme {
+  primaryColor: string;
+  accentColor: string;
+  backgroundColor: string;
+  cardColor: string;
+  buttonColor: string;
+  headerImageUrl?: string;
+}
+
+export interface Form {
+  id: string;
+  title: string;
+  description: string;
+  category?: string;
+  theme?: FormTheme;
+  interpretations: InterpretationRule[];
+  questions?: FormQuestion[];
+  questionCount?: number;
+  createdAt?: string;
+  shareToken?: string;
+}
+
+// Shape returned by GET /api/public/forms/:token — deliberately narrower than Form:
+// no interpretations, no score, no internal/administrative fields.
+export interface PublicForm {
+  id: string;
+  title: string;
+  description: string;
+  theme?: FormTheme;
+  questions: FormQuestion[];
+}
+
+export interface FormResponse {
+  id: string;
+  formId: string;
+  patientId?: string;
+  patientNome?: string;
+  answers: Record<string, any>;
+  totalScore: number | null;
+  matchedInterpretation: InterpretationRule | null;
+  submittedAt: string;
+}
 

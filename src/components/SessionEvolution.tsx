@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from "react";
 import { Clock, Plus, Save, Info, CheckSquare, Trash2, BookOpen, AlertCircle, Sparkles, Star, Lightbulb, Check } from "lucide-react";
 import { Patient, Session, Session as SessionType, UserRole, UserPermissions } from "../types";
+import { useToast } from "./UI";
 
 interface SessionEvolutionProps {
   patients: Patient[];
   userRole: UserRole;
-  onUpdateSessions: (updated: Session[]) => void;
+  onCreateSession: (payload: Partial<Session>) => Promise<void>;
   sessions: Session[];
   userPermissions?: UserPermissions;
 }
@@ -13,10 +14,11 @@ interface SessionEvolutionProps {
 export default function SessionEvolution({
   patients,
   userRole,
-  onUpdateSessions,
+  onCreateSession,
   sessions,
   userPermissions
 }: SessionEvolutionProps) {
+  const toast = useToast();
   const canCreate = userPermissions ? userPermissions.sessions.criar : (userRole !== UserRole.RESTRICTED);
 
   const [selectedPatId, setSelectedPatId] = useState<string>(patients[0]?.id || "");
@@ -174,12 +176,13 @@ Documento assinado digitalmente no prontuário eletrônico. Conforme LGPD.`;
     setNextPlan(tplData.nextPlan);
   };
 
-  const handleSaveSession = (e: React.FormEvent) => {
+  const [saving, setSaving] = useState(false);
+
+  const handleSaveSession = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedPat) return;
 
-    const newSession: Session = {
-      id: `sess-${Date.now()}`,
+    const newSession: Partial<Session> = {
       patientId: selectedPatId,
       data: new Date().toISOString().split("T")[0],
       profissional: "Francine Maria Tersi",
@@ -200,8 +203,15 @@ Documento assinado digitalmente no prontuário eletrônico. Conforme LGPD.`;
       planoProximaSessao: nextPlan
     };
 
-    onUpdateSessions([newSession, ...sessions]);
-    alert(`Evolução clínica estruturada e arquivada com sucesso para ${selectedPat.nome}!`);
+    setSaving(true);
+    try {
+      await onCreateSession(newSession);
+      toast.success(`Evolução clínica estruturada e arquivada com sucesso para ${selectedPat.nome}!`);
+    } catch (err: any) {
+      toast.error(err.message || "Falha ao salvar evolução clínica.");
+    } finally {
+      setSaving(false);
+    }
   };
 
   const handleAddSkill = () => {
@@ -487,9 +497,10 @@ Documento assinado digitalmente no prontuário eletrônico. Conforme LGPD.`;
               {canCreate && (
                 <button
                   type="submit"
-                  className="w-full py-4 bg-[#1070ca] hover:bg-[#0b5194] text-white rounded-full text-xs font-black uppercase tracking-wider transition-all duration-300 shadow-lg shadow-blue-500/10 cursor-pointer flex items-center justify-center gap-2"
+                  disabled={saving}
+                  className="w-full py-4 bg-[#1070ca] hover:bg-[#0b5194] disabled:opacity-60 disabled:cursor-not-allowed text-white rounded-full text-xs font-black uppercase tracking-wider transition-all duration-300 shadow-lg shadow-blue-500/10 cursor-pointer flex items-center justify-center gap-2"
                 >
-                  <Save className="h-4.5 w-4.5" /> Arquivar Prontuário no Histórico do Paciente
+                  <Save className="h-4.5 w-4.5" /> {saving ? "Salvando..." : "Arquivar Prontuário no Histórico do Paciente"}
                 </button>
               )}
             </form>

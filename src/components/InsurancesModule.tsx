@@ -1,68 +1,90 @@
 import React, { useState } from "react";
 import { CreditCard, Calendar, Plus, AlertTriangle, Check, RefreshCw, Layers } from "lucide-react";
 import { Patient, Insurance, UserRole, UserPermissions } from "../types";
-import { initialInsurances } from "../mockData";
+import { ConfirmModal, useToast } from "./UI";
 
 interface InsurancesModuleProps {
   patients: Patient[];
   userRole: UserRole;
+  insurances: Insurance[];
+  onCreateInsurance: (payload: Partial<Insurance>) => Promise<void>;
+  onUpdateInsurance: (id: string, payload: Partial<Insurance>) => Promise<void>;
+  onDeleteInsurance: (id: string) => Promise<void>;
   userPermissions?: UserPermissions;
 }
 
-export default function InsurancesModule({ patients, userRole, userPermissions }: InsurancesModuleProps) {
+export default function InsurancesModule({
+  patients,
+  userRole,
+  insurances,
+  onCreateInsurance,
+  onUpdateInsurance,
+  onDeleteInsurance,
+  userPermissions,
+}: InsurancesModuleProps) {
+  const toast = useToast();
   const canCreate = userPermissions ? userPermissions.insurances.criar : (userRole !== UserRole.RESTRICTED);
   const canEdit = userPermissions ? userPermissions.insurances.editar : (userRole !== UserRole.RESTRICTED);
   const canDelete = userPermissions ? userPermissions.insurances.excluir : (userRole === UserRole.ADMIN);
 
-  const [insurances, setInsurances] = useState<Insurance[]>(initialInsurances);
   const [selectedPatId, setSelectedPatId] = useState<string>(patients[0]?.id || "");
   const [newNome, setNewNome] = useState("Unimed Paulista");
   const [newGuia, setNewGuia] = useState("");
   const [newSessoesAut, setNewSessoesAut] = useState(24);
   const [newValidade, setNewValidade] = useState("");
+  const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
+  const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
 
-  const handleCreateInsurance = (e: React.FormEvent) => {
+  // patientNome is not stored on the backend insurances table; resolve client-side.
+  const patientNomeFor = (patientId?: string) => patients.find(p => p.id === patientId)?.nome ?? "Convênio Geral";
+
+  const handleCreateInsurance = async (e: React.FormEvent) => {
     e.preventDefault();
     const pat = patients.find(p => p.id === selectedPatId);
     if (!pat || !newGuia.trim() || !newValidade) return;
 
-    const newIns: Insurance = {
-      id: `ins-${Date.now()}`,
-      patientId: selectedPatId,
-      patientNome: pat.nome,
-      nome: newNome,
-      numeroGuia: newGuia,
-      sessoesAutorizadas: newSessoesAut,
-      sessoesUtilizadas: 0,
-      validade: newValidade
-    };
-
-    setInsurances([newIns, ...insurances]);
-    setNewGuia("");
-    setNewValidade("");
-    alert(`Guia de tratamento autorizada pela operadora ${newNome} registrada com sucesso para ${pat.nome}!`);
+    try {
+      await onCreateInsurance({
+        patientId: selectedPatId,
+        nome: newNome,
+        numeroGuia: newGuia,
+        sessoesAutorizadas: newSessoesAut,
+        sessoesUtilizadas: 0,
+        validade: newValidade,
+      });
+      setNewGuia("");
+      setNewValidade("");
+      toast.success(`Guia de tratamento autorizada pela operadora ${newNome} registrada com sucesso para ${pat.nome}!`);
+    } catch (err: any) {
+      toast.error(err.message || "Falha ao registrar guia de convênio.");
+    }
   };
 
-  const handleDebitSession = (id: string) => {
-    const updated = insurances.map(ins => {
-      if (ins.id === id) {
-        if (ins.sessoesUtilizadas >= ins.sessoesAutorizadas) {
-          alert("Aviso: Todas as sessões desta guia já foram debitadas. Por favor solicite a renovação junto à operadora.");
-          return ins;
-        }
-        return {
-          ...ins,
-          sessoesUtilizadas: ins.sessoesUtilizadas + 1
-        };
-      }
-      return ins;
-    });
-    setInsurances(updated);
+  const handleDebitSession = async (ins: Insurance) => {
+    if (ins.sessoesUtilizadas >= ins.sessoesAutorizadas) {
+      toast.warning("Todas as sessões desta guia já foram debitadas. Por favor solicite a renovação junto à operadora.");
+      return;
+    }
+    try {
+      await onUpdateInsurance(ins.id, { ...ins, sessoesUtilizadas: ins.sessoesUtilizadas + 1 });
+    } catch (err: any) {
+      toast.error(err.message || "Falha ao debitar sessão.");
+    }
   };
 
   const handleDeleteInsurance = (id: string) => {
-    if (confirm("Deseja realmente remover esta guia de convênio do arquivo?")) {
-      setInsurances(insurances.filter(ins => ins.id !== id));
+    setPendingDeleteId(id);
+    setConfirmDeleteOpen(true);
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!pendingDeleteId) return;
+    try {
+      await onDeleteInsurance(pendingDeleteId);
+      setConfirmDeleteOpen(false);
+      setPendingDeleteId(null);
+    } catch (err: any) {
+      toast.error(err.message || "Falha ao remover guia de convênio.");
     }
   };
 
@@ -186,7 +208,7 @@ export default function InsurancesModule({ patients, userRole, userPermissions }
                         <span className="text-[9px] font-black uppercase tracking-wider text-[#1070ca] bg-blue-100/50 px-2 py-0.5 rounded-md font-mono">
                           {ins.nome}
                         </span>
-                        <p className="text-xs font-black text-slate-800 leading-tight mt-2">{ins.patientNome}</p>
+                        <p className="text-xs font-black text-slate-800 leading-tight mt-2">{ins.patientNome ?? patientNomeFor(ins.patientId)}</p>
                         <p className="text-[10px] text-slate-400 mt-1 font-mono font-semibold">Cód. Guia: {ins.numeroGuia}</p>
                       </div>
 
@@ -224,7 +246,7 @@ export default function InsurancesModule({ patients, userRole, userPermissions }
                     <div className="flex justify-between items-center pt-3 border-t border-slate-100">
                       {canEdit ? (
                         <button
-                          onClick={() => handleDebitSession(ins.id)}
+                          onClick={() => handleDebitSession(ins)}
                           className="px-3.5 py-1.5 bg-[#1070ca] hover:bg-[#0b5194] text-white font-black text-[10px] uppercase tracking-wider rounded-lg transition flex items-center gap-1 cursor-pointer"
                         >
                           <Check className="h-3.5 w-3.5" /> Debitar Sessão
@@ -250,6 +272,16 @@ export default function InsurancesModule({ patients, userRole, userPermissions }
           </div>
         </div>
       </div>
+
+      <ConfirmModal
+        isOpen={confirmDeleteOpen}
+        onClose={() => setConfirmDeleteOpen(false)}
+        onConfirm={handleConfirmDelete}
+        title="Remover guia de convênio?"
+        message="Esta guia de convênio será removida permanentemente do arquivo do paciente. Esta ação não pode ser desfeita."
+        confirmLabel="Remover"
+        variant="danger"
+      />
     </div>
   );
 }

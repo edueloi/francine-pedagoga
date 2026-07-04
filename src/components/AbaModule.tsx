@@ -28,6 +28,7 @@ import {
   Legend 
 } from "recharts";
 import { Patient, UserRole, UserPermissions } from "../types";
+import { useToast, ConfirmModal } from "./UI";
 
 interface AbaModuleProps {
   patients: Patient[];
@@ -69,6 +70,7 @@ interface SavedAbaSession {
 }
 
 export default function AbaModule({ patients, userRole, userPermissions }: AbaModuleProps) {
+  const toast = useToast();
   const canCreate = userPermissions ? userPermissions.pei.criar : (userRole !== UserRole.RESTRICTED);
   const canDelete = userPermissions ? userPermissions.pei.excluir : (userRole === UserRole.ADMIN);
 
@@ -271,6 +273,10 @@ export default function AbaModule({ patients, userRole, userPermissions }: AbaMo
     }
   ]);
 
+  // Confirm delete session modal state
+  const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
+  const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
+
   // Form states to create a new program
   const [newProgNome, setNewProgNome] = useState("");
   const [newProgCat, setNewProgCat] = useState("Comunicação");
@@ -353,17 +359,23 @@ export default function AbaModule({ patients, userRole, userPermissions }: AbaMo
     };
 
     setSavedSessions([newSession, ...savedSessions]);
-    alert(`Folha de Registro ABA salva com sucesso!\nDesempenho: ${pctInd}% de acertos independentes.`);
-    
+    toast.success(`Folha de Registro ABA salva com sucesso! Desempenho: ${pctInd}% de acertos independentes.`);
+
     // Clear and reset form
     handleResetTrials();
   };
 
   // Delete saved session
   const handleDeleteSession = (id: string) => {
-    if (confirm("Deseja realmente excluir este registro de tentativas do histórico?")) {
-      setSavedSessions(savedSessions.filter(s => s.id !== id));
-    }
+    setPendingDeleteId(id);
+    setConfirmDeleteOpen(true);
+  };
+
+  const handleConfirmDeleteSession = () => {
+    setSavedSessions(savedSessions.filter(s => s.id !== pendingDeleteId));
+    setConfirmDeleteOpen(false);
+    setPendingDeleteId(null);
+    toast.success("Registro de tentativas excluído do histórico.");
   };
 
   // Handle creating new custom program
@@ -391,8 +403,8 @@ export default function AbaModule({ patients, userRole, userPermissions }: AbaMo
     setNewProgAlvos("");
     setNewProgInstr("");
     setIsAddingProgram(false);
-    
-    alert(`Programa de Ensino "${newProg.nome}" cadastrado com sucesso!`);
+
+    toast.success(`Programa de Ensino "${newProg.nome}" cadastrado com sucesso!`);
   };
 
   // Filter saved sessions by current patient and current program to show acquisition curve!
@@ -1018,6 +1030,17 @@ export default function AbaModule({ patients, userRole, userPermissions }: AbaMo
           <p className="text-xs text-slate-400 text-center py-6">Nenhuma sessão registrada para este paciente ainda.</p>
         )}
       </div>
+
+      <ConfirmModal
+        isOpen={confirmDeleteOpen}
+        onClose={() => setConfirmDeleteOpen(false)}
+        onConfirm={handleConfirmDeleteSession}
+        title="Excluir registro de tentativas?"
+        message="Este registro de tentativas ABA será removido permanentemente do histórico do paciente. Esta ação não pode ser desfeita."
+        confirmLabel="Excluir"
+        cancelLabel="Cancelar"
+        variant="danger"
+      />
 
     </div>
   );
