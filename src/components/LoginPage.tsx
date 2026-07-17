@@ -1,7 +1,8 @@
 import React, { useState } from "react";
-import { Shield, Key, Mail, Lock, Heart, ArrowLeft, CheckCircle2, Sparkles, Smile, LayoutGrid, Award, BookOpen, Loader2, Eye, EyeOff } from "lucide-react";
+import { Shield, Key, Mail, Lock, Heart, ArrowLeft, CheckCircle2, Sparkles, Smile, LayoutGrid, Award, BookOpen, Loader2, Eye, EyeOff, Download, X } from "lucide-react";
 import { LogoSVG } from "./LandingPage";
 import { useAuth } from "../contexts/AuthContext";
+import { useInstallPrompt } from "../hooks/useInstallPrompt";
 
 interface LoginPageProps {
   onLoginSuccess: () => void;
@@ -10,6 +11,7 @@ interface LoginPageProps {
 
 export default function LoginPage({ onLoginSuccess, onBackToLanding }: LoginPageProps) {
   const { login } = useAuth();
+  const { canInstall, promptInstall, dismiss } = useInstallPrompt();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
@@ -92,6 +94,33 @@ export default function LoginPage({ onLoginSuccess, onBackToLanding }: LoginPage
               </p>
             </div>
           </div>
+
+          {canInstall && (
+            <div className="flex items-center gap-3 bg-blue-50/70 border border-blue-100 rounded-2xl p-3.5">
+              <div className="h-10 w-10 rounded-xl bg-white flex items-center justify-center shrink-0 shadow-sm">
+                <LogoSVG className="h-7 w-7" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-xs font-black text-slate-800">Instalar o aplicativo</p>
+                <p className="text-[10px] text-slate-500 leading-snug">Acesse mais rápido, direto da tela inicial do seu dispositivo.</p>
+              </div>
+              <button
+                type="button"
+                onClick={promptInstall}
+                className="shrink-0 inline-flex items-center gap-1 bg-[#1070ca] hover:bg-[#0b5194] text-white text-[10px] font-black uppercase tracking-wide px-3 py-2 rounded-xl transition-colors cursor-pointer"
+              >
+                <Download className="h-3.5 w-3.5" /> Instalar
+              </button>
+              <button
+                type="button"
+                onClick={dismiss}
+                aria-label="Dispensar"
+                className="shrink-0 text-slate-400 hover:text-slate-600 cursor-pointer"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+          )}
 
           {/* Form Switcher */}
           {!showRecover ? (
