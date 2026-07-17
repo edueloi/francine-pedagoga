@@ -21,6 +21,7 @@ import peiGoalsRoutes from "./backend/routes/peiGoals";
 import auditLogsRoutes from "./backend/routes/auditLogs";
 import formsRoutes, { publicFormsRouter } from "./backend/routes/forms";
 import whatsappRoutes from "./backend/routes/whatsapp";
+import emailRoutes from "./backend/routes/email";
 import uploadsRoutes from "./backend/routes/uploads";
 import clinicSettingsRoutes, { publicClinicInfoRouter } from "./backend/routes/clinicSettings";
 import { publicAnamneseRouter } from "./backend/routes/anamneseShare";
@@ -49,6 +50,7 @@ app.use("/api/pei-goals", peiGoalsRoutes);
 app.use("/api/audit-logs", auditLogsRoutes);
 app.use("/api/forms", formsRoutes);
 app.use("/api/whatsapp", whatsappRoutes);
+app.use("/api/email", emailRoutes);
 app.use("/api/uploads", uploadsRoutes);
 app.use("/api/clinic-settings", clinicSettingsRoutes);
 

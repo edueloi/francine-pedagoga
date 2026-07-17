@@ -6,6 +6,7 @@ export type { ModalProps } from './Modal';
 // ── Formulários ────────────────────────────────────────────────────────────
 export { Input, Textarea, Select } from './Input';
 export { Switch } from './Switch';
+export { Tooltip } from './Tooltip';
 export { DatePicker } from './DatePicker';
 export { Calendar } from './Calendar';
 export { AgendaPlanner } from './AgendaPlanner';

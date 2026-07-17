@@ -30,6 +30,7 @@ import { useAuth } from "../contexts/AuthContext";
 import { useWhatsapp } from "../hooks/useWhatsapp";
 import { useToast, ConfirmModal } from "./UI";
 import { WhatsappTemplatesEditor } from "./WhatsappTemplatesEditor";
+import { EmailTemplatesEditor } from "./EmailTemplatesEditor";
 
 interface AuditLogModuleProps {
   userRole: UserRole;
@@ -941,6 +942,11 @@ export default function AuditLogModule({
           {/* Right: editable message templates */}
           <div className="lg:col-span-8">
             <WhatsappTemplatesEditor />
+          </div>
+
+          {/* Bottom: e-mail notification templates (full width) */}
+          <div className="lg:col-span-12 border-t border-slate-100 pt-8">
+            <EmailTemplatesEditor />
           </div>
         </div>
       )}
