@@ -20,6 +20,7 @@ const COLUMNS = [
   "convenio_carteirinha",
   "convenio_validade",
   "telefone",
+  "email",
   "escola",
   "ano_serie",
   "professor",

@@ -287,6 +287,16 @@ export const PatientFormWizard: React.FC<PatientFormWizardProps> = ({
                   maxLength={15}
                 />
               </div>
+              <div className="space-y-2">
+                <label className={labelClass}>E-mail de contato</label>
+                <input
+                  type="email"
+                  placeholder="responsavel@email.com"
+                  className={inputClass}
+                  value={formData.email || ''}
+                  onChange={(e) => updateField('email', e.target.value)}
+                />
+              </div>
             </div>
 
             <div className="border-t border-slate-200 pt-4 space-y-4">

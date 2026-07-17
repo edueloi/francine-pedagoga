@@ -89,7 +89,7 @@ export default function LoginPage({ onLoginSuccess, onBackToLanding }: LoginPage
               {/* Login Field */}
               <div className="space-y-1.5">
                 <label htmlFor="email" className="block text-[9px] font-black uppercase text-slate-400 tracking-wider">
-                  Usuário ou E-mail
+                  E-mail
                 </label>
                 <div className="relative">
                   <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">

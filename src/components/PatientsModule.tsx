@@ -635,6 +635,9 @@ export default function PatientsModule({
                 <p className="flex justify-between border-b border-slate-50 pb-1.5"><strong className="text-slate-400 font-extrabold">Idade atual:</strong> <span className="text-slate-800 font-bold">{selectedPat.idade} anos ({new Date(selectedPat.dataNascimento).toLocaleDateString('pt-BR')})</span></p>
                 <p className="flex justify-between border-b border-slate-50 pb-1.5"><strong className="text-slate-400 font-extrabold">Responsável:</strong> <span className="text-slate-800 font-bold">{selectedPat.responsavel} {selectedPat.responsavelParentesco ? `(${selectedPat.responsavelParentesco})` : ""}</span></p>
                 <p className="flex justify-between border-b border-slate-50 pb-1.5"><strong className="text-slate-400 font-extrabold">Telefone principal:</strong> <span className="text-slate-800 font-bold">{selectedPat.telefone}</span></p>
+                {selectedPat.email && (
+                  <p className="flex justify-between border-b border-slate-50 pb-1.5"><strong className="text-slate-400 font-extrabold">E-mail:</strong> <span className="text-slate-800 font-bold truncate max-w-[150px]">{selectedPat.email}</span></p>
+                )}
                 <p className="flex justify-between border-b border-slate-50 pb-1.5"><strong className="text-slate-400 font-extrabold">Pagamento:</strong> <span className="text-slate-800 font-black text-blue-700">{selectedPat.tipoPagamento || "Particular"}</span></p>
                 <p className="flex justify-between border-b border-slate-50 pb-1.5"><strong className="text-slate-400 font-extrabold">Convênio:</strong> <span className="text-slate-800 font-bold truncate max-w-[150px]">{selectedPat.convenio}</span></p>
                 <div className="p-3 bg-red-50/50 border border-red-100 rounded-2xl mt-1">

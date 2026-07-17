@@ -34,6 +34,7 @@ export interface Patient {
   convenioCarteirinha?: string;
   convenioValidade?: string;
   telefone: string;
+  email?: string;
   escola: string;
   anoSerie: string;
   professor: string;

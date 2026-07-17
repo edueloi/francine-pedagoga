@@ -399,6 +399,13 @@ async function migrate() {
   // limpa e evitando gerar links que nunca serão usados.
   await addColumnIfMissing(conn, "patients", "anamnese_share_token", "VARCHAR(64) NULL UNIQUE");
 
+  // ---- PATIENTS: e-mail para notificações transacionais (idempotente) ----
+  await addColumnIfMissing(conn, "patients", "email", "VARCHAR(255) NULL");
+
+  // ---- USERS: token de recuperação de senha / convite de acesso (idempotente) ----
+  await addColumnIfMissing(conn, "users", "reset_token", "VARCHAR(255) NULL");
+  await addColumnIfMissing(conn, "users", "reset_token_expires", "DATETIME NULL");
+
   // ---- WHATSAPP BOT: configurações de templates de mensagem (editáveis pela UI) ----
   await conn.query(`
     CREATE TABLE IF NOT EXISTS whatsapp_settings (
@@ -452,6 +459,83 @@ async function migrate() {
       await conn.query(
         `INSERT INTO whatsapp_settings (setting_key, enabled, message_template) VALUES (?, TRUE, ?)`,
         [key, template]
+      );
+    }
+  }
+
+  // ---- E-MAIL: configurações de templates de notificação por e-mail (editáveis pela UI) ----
+  await conn.query(`
+    CREATE TABLE IF NOT EXISTS email_settings (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      setting_key VARCHAR(50) NOT NULL UNIQUE,
+      enabled BOOLEAN DEFAULT TRUE,
+      subject VARCHAR(255) NOT NULL,
+      message_template TEXT NOT NULL,
+      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+  `);
+
+  // ---- E-MAIL: seed dos templates padrão (idempotente, não sobrescreve edições) ----
+  const DEFAULT_EMAIL_TEMPLATES = [
+    {
+      key: "reminder_24h",
+      subject: "Lembrete: atendimento amanhã — Espaço Aprender a Ser",
+      template:
+        "<p>Olá!</p><p>Passando para confirmar o atendimento de <strong>{nome}</strong> amanhã, dia {data}, às {hora}.</p>" +
+        "<p>Contamos com a presença de vocês! Qualquer imprevisto, por favor nos avise.</p><p>Equipe Espaço Aprender a Ser</p>",
+    },
+    {
+      key: "reminder_1h",
+      subject: "Lembrete: atendimento em 1 hora — Espaço Aprender a Ser",
+      template:
+        "<p>Olá!</p><p>O atendimento de <strong>{nome}</strong> está agendado para hoje às {hora}, em cerca de 1 hora.</p>" +
+        "<p>Até já!</p><p>Equipe Espaço Aprender a Ser</p>",
+    },
+    {
+      key: "appointment_confirmed",
+      subject: "Atendimento confirmado — Espaço Aprender a Ser",
+      template:
+        "<p>Olá!</p><p>O atendimento de <strong>{nome}</strong> no dia {data} às {hora} foi confirmado.</p>" +
+        "<p>Equipe Espaço Aprender a Ser</p>",
+    },
+    {
+      key: "appointment_thanks",
+      subject: "Obrigado pela presença — Espaço Aprender a Ser",
+      template:
+        "<p>Olá!</p><p>Agradecemos a presença de <strong>{nome}</strong> no atendimento de hoje.</p>" +
+        "<p>Até a próxima!</p><p>Equipe Espaço Aprender a Ser</p>",
+    },
+    {
+      key: "form_result",
+      subject: "Resultado do formulário — Espaço Aprender a Ser",
+      template:
+        "<p>Olá!</p><p>O formulário respondido por <strong>{nome}</strong> foi processado.</p>" +
+        "<p>Resultado: {resultado}</p><p>Equipe Espaço Aprender a Ser</p>",
+    },
+    {
+      key: "password_reset",
+      subject: "Recuperação de senha — Espaço Aprender a Ser",
+      template:
+        "<p>Olá, {nome}!</p><p>Recebemos uma solicitação para redefinir sua senha. Clique no link abaixo para continuar:</p>" +
+        "<p><a href=\"{link}\">{link}</a></p><p>Se você não solicitou isso, ignore este e-mail. O link expira em 1 hora.</p>",
+    },
+    {
+      key: "user_invite",
+      subject: "Convite de acesso — Espaço Aprender a Ser",
+      template:
+        "<p>Olá, {nome}!</p><p>Você foi convidado(a) a acessar o sistema do Espaço Aprender a Ser. Clique no link abaixo para definir sua senha:</p>" +
+        "<p><a href=\"{link}\">{link}</a></p><p>O link expira em 1 hora.</p>",
+    },
+  ];
+  for (const { key, subject, template } of DEFAULT_EMAIL_TEMPLATES) {
+    const [existing] = await conn.query(
+      `SELECT id FROM email_settings WHERE setting_key = ?`,
+      [key]
+    );
+    if (existing.length === 0) {
+      await conn.query(
+        `INSERT INTO email_settings (setting_key, enabled, subject, message_template) VALUES (?, TRUE, ?, ?)`,
+        [key, subject, template]
       );
     }
   }
