@@ -406,6 +406,12 @@ async function migrate() {
   await addColumnIfMissing(conn, "users", "reset_token", "VARCHAR(255) NULL");
   await addColumnIfMissing(conn, "users", "reset_token_expires", "DATETIME NULL");
 
+  // ---- USERS: campos de perfil pessoal (foto, profissão, aniversário, abordagens) ----
+  await addColumnIfMissing(conn, "users", "avatar_url", "VARCHAR(500) NULL");
+  await addColumnIfMissing(conn, "users", "profissao", "VARCHAR(255) NULL");
+  await addColumnIfMissing(conn, "users", "data_nascimento", "DATE NULL");
+  await addColumnIfMissing(conn, "users", "abordagens", "TEXT NULL COMMENT 'lista de abordagens/especialidades, separadas por vírgula'");
+
   // ---- WHATSAPP BOT: configurações de templates de mensagem (editáveis pela UI) ----
   await conn.query(`
     CREATE TABLE IF NOT EXISTS whatsapp_settings (

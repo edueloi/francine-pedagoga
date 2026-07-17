@@ -1,7 +1,7 @@
 import { useCallback, useState } from "react";
 import { useAuth } from "../contexts/AuthContext";
 
-export type UploadCategory = "clinic" | "documents";
+export type UploadCategory = "clinic" | "documents" | "avatars";
 
 // authFetch (see AuthContext) only force-sets a JSON Content-Type when the body is a
 // plain string, and explicitly skips that for FormData bodies — so it is safe to reuse

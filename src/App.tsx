@@ -21,6 +21,7 @@ import AbaModule from "./components/AbaModule";
 import FormsModule from "./components/FormsModule";
 import ClinicSettingsModule from "./components/ClinicSettingsModule";
 import ReportsModule from "./components/ReportsModule";
+import MyProfilePage from "./components/MyProfilePage";
 import { Sidebar } from "./components/Layout/Sidebar";
 import { Topbar } from "./components/Layout/Topbar";
 
@@ -248,6 +249,8 @@ function AuthenticatedApp() {
             />
 
             <Route path="/relatorios-gerenciais" element={<ReportsModule />} />
+
+            <Route path="/meu-perfil" element={<MyProfilePage />} />
 
             <Route path="*" element={<Navigate to="/dashboard" replace />} />
           </Routes>

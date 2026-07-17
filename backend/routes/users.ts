@@ -17,6 +17,52 @@ router.get("/", async (_req, res) => {
   res.json(rows);
 });
 
+// GET /api/users/me — the logged-in user's own profile (mounted before any /:id route
+// so "me" is never mistaken for a numeric id).
+router.get("/me", async (req, res) => {
+  const [rows]: any = await pool.query(
+    "SELECT id, name, email, role, avatar_url, profissao, data_nascimento, abordagens FROM users WHERE id = ?",
+    [req.user!.id]
+  );
+  if (rows.length === 0) return res.status(404).json({ error: "Não encontrado" });
+  res.json(rows[0]);
+});
+
+// PUT /api/users/me — the logged-in user updates their own profile fields (never role/active,
+// which only an Administrator can change via PUT /:id).
+router.put("/me", async (req, res) => {
+  const { name, avatarUrl, profissao, dataNascimento, abordagens, currentPassword, newPassword } = req.body || {};
+  if (!name || typeof name !== "string") {
+    return res.status(400).json({ error: "O campo 'name' é obrigatório" });
+  }
+
+  if (newPassword) {
+    if (!currentPassword) {
+      return res.status(400).json({ error: "Informe a senha atual para definir uma nova senha" });
+    }
+    const [rows]: any = await pool.query("SELECT password FROM users WHERE id = ?", [req.user!.id]);
+    if (rows.length === 0) return res.status(404).json({ error: "Não encontrado" });
+    const valid = await bcrypt.compare(currentPassword, rows[0].password);
+    if (!valid) return res.status(400).json({ error: "Senha atual incorreta" });
+    if (String(newPassword).length < 6) {
+      return res.status(400).json({ error: "A nova senha deve ter no mínimo 6 caracteres" });
+    }
+    const hashed = await bcrypt.hash(newPassword, 10);
+    await pool.query("UPDATE users SET password = ? WHERE id = ?", [hashed, req.user!.id]);
+  }
+
+  await pool.query(
+    "UPDATE users SET name = ?, avatar_url = ?, profissao = ?, data_nascimento = ?, abordagens = ? WHERE id = ?",
+    [name, avatarUrl ?? null, profissao ?? null, dataNascimento ?? null, abordagens ?? null, req.user!.id]
+  );
+
+  const [rows]: any = await pool.query(
+    "SELECT id, name, email, role, avatar_url, profissao, data_nascimento, abordagens FROM users WHERE id = ?",
+    [req.user!.id]
+  );
+  res.json(rows[0]);
+});
+
 router.post("/", async (req, res) => {
   const { name, email, password, role } = req.body;
   if (!name || !email || !password || !role) {

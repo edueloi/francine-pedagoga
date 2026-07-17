@@ -20,6 +20,9 @@ const CATEGORY_CONFIG: Record<string, { allowedMimeTypes: string[] }> = {
   documents: {
     allowedMimeTypes: ["image/jpeg", "image/png", "image/webp", "application/pdf"],
   },
+  avatars: {
+    allowedMimeTypes: ["image/jpeg", "image/png", "image/webp"],
+  },
 };
 
 const uploadsRoot = path.join(process.cwd(), "uploads");

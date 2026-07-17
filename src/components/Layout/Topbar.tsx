@@ -1,6 +1,8 @@
 import React, { useState, useRef, useEffect } from "react";
-import { Menu, LogOut, ChevronDown } from "lucide-react";
+import { Link } from "react-router-dom";
+import { Menu, LogOut, ChevronDown, UserCircle } from "lucide-react";
 import { AuthUser } from "../../contexts/AuthContext";
+import { useMyProfile } from "../../hooks/useMyProfile";
 
 interface TopbarProps {
   onMenuClick: () => void;
@@ -11,6 +13,7 @@ interface TopbarProps {
 export const Topbar: React.FC<TopbarProps> = ({ onMenuClick, onLogout, user }) => {
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const { profile } = useMyProfile();
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -45,7 +48,11 @@ export const Topbar: React.FC<TopbarProps> = ({ onMenuClick, onLogout, user }) =
           >
             <div className="h-9 w-9 rounded-full bg-gradient-to-br from-[#1070ca] to-[#d43f72] p-0.5 shadow-md shadow-blue-200 group-hover:shadow-blue-300 transition-shadow">
               <div className="h-full w-full rounded-full bg-white flex items-center justify-center overflow-hidden">
-                <span className="font-bold text-[#1070ca] text-sm">{initials}</span>
+                {profile?.avatarUrl ? (
+                  <img src={profile.avatarUrl} alt="" className="h-full w-full object-cover" />
+                ) : (
+                  <span className="font-bold text-[#1070ca] text-sm">{initials}</span>
+                )}
               </div>
             </div>
             <div className="text-right hidden md:block">
@@ -68,7 +75,11 @@ export const Topbar: React.FC<TopbarProps> = ({ onMenuClick, onLogout, user }) =
                 <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Conectado</p>
                 <div className="flex items-center gap-3">
                   <div className="h-10 w-10 rounded-full bg-blue-100 flex items-center justify-center text-[#1070ca] font-bold overflow-hidden border border-slate-200">
-                    {initials}
+                    {profile?.avatarUrl ? (
+                      <img src={profile.avatarUrl} alt="" className="h-full w-full object-cover" />
+                    ) : (
+                      initials
+                    )}
                   </div>
                   <div className="flex-1 min-w-0">
                     <p className="font-bold text-slate-800 truncate">{user?.name}</p>
@@ -80,7 +91,14 @@ export const Topbar: React.FC<TopbarProps> = ({ onMenuClick, onLogout, user }) =
                 </div>
               </div>
 
-              <div className="p-2 border-t border-slate-50">
+              <div className="p-2 border-t border-slate-50 space-y-1">
+                <Link
+                  to="/meu-perfil"
+                  onClick={() => setIsDropdownOpen(false)}
+                  className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-bold text-slate-600 bg-slate-50 hover:bg-slate-100 transition-colors cursor-pointer"
+                >
+                  <UserCircle size={16} /> Meu Perfil
+                </Link>
                 <button
                   onClick={() => {
                     setIsDropdownOpen(false);
