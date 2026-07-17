@@ -12,6 +12,7 @@ import {
   GraduationCap,
   ClipboardList,
   Building2,
+  BarChart3,
 } from "lucide-react";
 import type { UserPermissions } from "./types";
 
@@ -69,6 +70,7 @@ export const NAV_SECTIONS: NavSection[] = [
     title: "Sistema",
     items: [
       { label: "Minha Clínica", path: "/minha-clinica", icon: Building2, permissionKey: "clinicSettings" },
+      { label: "Relatórios Gerenciais", path: "/relatorios-gerenciais", icon: BarChart3, permissionKey: "logs" },
       { label: "Acessos & Segurança", path: "/auditoria", icon: Shield, permissionKey: "logs" },
     ],
   },

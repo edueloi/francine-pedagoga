@@ -22,6 +22,7 @@ import auditLogsRoutes from "./backend/routes/auditLogs";
 import formsRoutes, { publicFormsRouter } from "./backend/routes/forms";
 import whatsappRoutes from "./backend/routes/whatsapp";
 import emailRoutes from "./backend/routes/email";
+import reportsRoutes from "./backend/routes/reports";
 import uploadsRoutes from "./backend/routes/uploads";
 import clinicSettingsRoutes, { publicClinicInfoRouter } from "./backend/routes/clinicSettings";
 import { publicAnamneseRouter } from "./backend/routes/anamneseShare";
@@ -51,6 +52,7 @@ app.use("/api/audit-logs", auditLogsRoutes);
 app.use("/api/forms", formsRoutes);
 app.use("/api/whatsapp", whatsappRoutes);
 app.use("/api/email", emailRoutes);
+app.use("/api/reports", reportsRoutes);
 app.use("/api/uploads", uploadsRoutes);
 app.use("/api/clinic-settings", clinicSettingsRoutes);
 

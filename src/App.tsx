@@ -20,6 +20,7 @@ import AuditLogModule from "./components/AuditLogModule";
 import AbaModule from "./components/AbaModule";
 import FormsModule from "./components/FormsModule";
 import ClinicSettingsModule from "./components/ClinicSettingsModule";
+import ReportsModule from "./components/ReportsModule";
 import { Sidebar } from "./components/Layout/Sidebar";
 import { Topbar } from "./components/Layout/Topbar";
 
@@ -245,6 +246,8 @@ function AuthenticatedApp() {
               path="/minha-clinica"
               element={<ClinicSettingsModule userRole={userRole} userPermissions={activePermissions} />}
             />
+
+            <Route path="/relatorios-gerenciais" element={<ReportsModule />} />
 
             <Route path="*" element={<Navigate to="/dashboard" replace />} />
           </Routes>
