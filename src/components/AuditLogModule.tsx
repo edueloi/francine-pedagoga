@@ -22,7 +22,8 @@ import {
   QrCode,
   Send,
   Eye,
-  EyeOff
+  EyeOff,
+  Mail
 } from "lucide-react";
 import { AuditLog, UserRole, SystemUser, UserPermissions, ModulePermission } from "../types";
 import { useAuditLogs } from "../hooks/useAuditLogs";
@@ -41,6 +42,7 @@ interface AuditLogModuleProps {
     payload: { name: string; email: string; role: string; active: boolean; password?: string }
   ) => Promise<void>;
   onDeleteUser: (id: string) => Promise<void>;
+  onInviteUser: (id: string) => Promise<void>;
   rolePermissions: Record<UserRole, UserPermissions>;
   onUpdateRolePermissions: (updated: Record<UserRole, UserPermissions>) => void;
   userPermissions: UserPermissions;
@@ -64,11 +66,17 @@ export default function AuditLogModule({
   onCreateUser,
   onUpdateUser,
   onDeleteUser,
+  onInviteUser,
   rolePermissions,
   onUpdateRolePermissions,
   userPermissions
 }: AuditLogModuleProps) {
   const { user: authUser } = useAuth();
+  // The "admin" seed account (admin@aprenderaser.com) is a technical/emergency-access
+  // login created automatically by the migration script, not a real staff member —
+  // hidden from this list so it doesn't get confused with actual team accounts. It still
+  // exists and can log in if ever needed; this is a display-only filter.
+  const visibleUsers = users.filter((u) => u.email !== "admin@aprenderaser.com");
   const [activeSubTab, setActiveSubTab] = useState<"users" | "matrix" | "logs" | "integrations">("users");
   const { logs, loading: logsLoading, error: logsError, createLog } = useAuditLogs();
   const whatsapp = useWhatsapp();
@@ -278,6 +286,15 @@ export default function AuditLogModule({
     }
   };
 
+  const handleInviteUser = async (u: SystemUser) => {
+    try {
+      await onInviteUser(u.id);
+      toast.success(`Convite de acesso enviado para ${u.email}.`);
+    } catch (err: any) {
+      toast.error(err.message || "Falha ao enviar convite de acesso.");
+    }
+  };
+
   const handleToggleCustomUserPerm = (moduleKey: keyof UserPermissions, action: keyof ModulePermission) => {
     const updated = { ...customPerms };
     updated[moduleKey] = {
@@ -357,7 +374,7 @@ export default function AuditLogModule({
                   <h3 className="font-display font-black text-slate-800 text-sm uppercase tracking-wider flex items-center gap-1.5">
                     Usuários com Acesso
                   </h3>
-                  <p className="text-[11px] text-slate-400">Total de {users.length} acessos configurados no sistema.</p>
+                  <p className="text-[11px] text-slate-400">Total de {visibleUsers.length} acessos configurados no sistema.</p>
                 </div>
                 {!showAddForm && (
                   <button
@@ -374,7 +391,7 @@ export default function AuditLogModule({
               </div>
 
               <div className="space-y-3">
-                {users.map(u => {
+                {visibleUsers.map(u => {
                   const initials = u.name.split(" ").map(n => n[0]).join("").substring(0, 2).toUpperCase();
                   const roleColors = {
                     [UserRole.ADMIN]: "bg-rose-50 text-rose-700 border-rose-100",
@@ -415,6 +432,13 @@ export default function AuditLogModule({
                       </div>
 
                       <div className="flex items-center gap-1.5 self-end sm:self-auto">
+                        <button
+                          onClick={() => handleInviteUser(u)}
+                          className="p-1.5 bg-white border border-slate-100 hover:border-blue-200 rounded-lg text-slate-400 hover:text-[#1070ca] transition cursor-pointer"
+                          title="Enviar convite de acesso por e-mail"
+                        >
+                          <Mail className="h-4 w-4" />
+                        </button>
                         <button
                           onClick={() => handleToggleUserStatus(u)}
                           className={`px-2.5 py-1.5 rounded-lg text-[10px] font-black uppercase transition cursor-pointer border ${

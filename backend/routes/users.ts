@@ -1,10 +1,14 @@
 import express from "express";
 import bcrypt from "bcryptjs";
+import crypto from "crypto";
 import { pool } from "../db";
 import { authMiddleware } from "../middleware/auth";
+import { sendEmail } from "../services/emailService";
 
 const router = express.Router();
 router.use(authMiddleware);
+
+const RESET_TOKEN_TTL_MS = 60 * 60 * 1000; // 1 hora
 
 router.get("/", async (_req, res) => {
   const [rows] = await pool.query(
@@ -56,6 +60,37 @@ router.delete("/:id", async (req, res) => {
   const [result]: any = await pool.query("DELETE FROM users WHERE id = ?", [req.params.id]);
   if (result.affectedRows === 0) return res.status(404).json({ error: "Não encontrado" });
   res.status(204).end();
+});
+
+// POST /api/users/:id/invite — (re)sends an access-invite e-mail with a link to set the
+// first password, reusing the same reset-token mechanism as forgot-password.
+router.post("/:id/invite", async (req, res) => {
+  const [rows]: any = await pool.query("SELECT id, name, email FROM users WHERE id = ?", [req.params.id]);
+  if (rows.length === 0) return res.status(404).json({ error: "Não encontrado" });
+  const user = rows[0];
+
+  const token = crypto.randomBytes(32).toString("hex");
+  const expires = new Date(Date.now() + RESET_TOKEN_TTL_MS);
+  await pool.query("UPDATE users SET reset_token = ?, reset_token_expires = ? WHERE id = ?", [token, expires, user.id]);
+
+  const [settingRows]: any = await pool.query(
+    "SELECT enabled, subject, message_template FROM email_settings WHERE setting_key = 'user_invite'"
+  );
+  const setting = settingRows[0];
+  if (!setting || !setting.enabled) {
+    return res.status(422).json({ error: "O envio de convite por e-mail está desativado nas configurações." });
+  }
+
+  const link = `${process.env.APP_URL || ""}/reset-senha?token=${token}`;
+  const html = (setting.message_template as string)
+    .replace(/\{nome\}/g, user.name || "Usuário")
+    .replace(/\{link\}/g, link);
+
+  const sent = await sendEmail(user.email, setting.subject, html);
+  if (!sent) {
+    return res.status(422).json({ error: "Não foi possível enviar o e-mail de convite. Verifique o endereço informado." });
+  }
+  res.json({ success: true });
 });
 
 export default router;

@@ -18,6 +18,7 @@ export default function LoginPage({ onLoginSuccess, onBackToLanding }: LoginPage
   const [showRecover, setShowRecover] = useState(false);
   const [recoverEmail, setRecoverEmail] = useState("");
   const [recoverSent, setRecoverSent] = useState(false);
+  const [recoverLoading, setRecoverLoading] = useState(false);
   const [lgpdAccepted, setLgpdAccepted] = useState(true);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -39,9 +40,19 @@ export default function LoginPage({ onLoginSuccess, onBackToLanding }: LoginPage
     }
   };
 
-  const handleRecoverSubmit = (e: React.FormEvent) => {
+  const handleRecoverSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (recoverEmail.trim()) {
+    if (!recoverEmail.trim()) return;
+
+    setRecoverLoading(true);
+    try {
+      await fetch("/api/auth/forgot-password", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: recoverEmail.trim() }),
+      });
+    } finally {
+      setRecoverLoading(false);
       setRecoverSent(true);
       setTimeout(() => {
         setRecoverSent(false);
@@ -226,9 +237,10 @@ export default function LoginPage({ onLoginSuccess, onBackToLanding }: LoginPage
                 </button>
                 <button
                   type="submit"
-                  className="py-2.5 px-4 rounded-full bg-slate-900 hover:bg-[#1070ca] text-white font-black text-xs cursor-pointer transition-colors"
+                  disabled={recoverLoading}
+                  className="py-2.5 px-4 rounded-full bg-slate-900 hover:bg-[#1070ca] text-white font-black text-xs cursor-pointer transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
                 >
-                  Enviar Instruções
+                  {recoverLoading ? "Enviando..." : "Enviar Instruções"}
                 </button>
               </div>
             </form>

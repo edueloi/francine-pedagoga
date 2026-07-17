@@ -5,6 +5,7 @@ import LoginPage from "./components/LoginPage";
 import SplashScreen from "./components/SplashScreen";
 import PublicFormPage from "./components/PublicFormPage";
 import PublicAnamnesePage from "./components/PublicAnamnesePage";
+import ResetPasswordPage from "./components/ResetPasswordPage";
 import Dashboard from "./components/Dashboard";
 import PatientsModule from "./components/PatientsModule";
 import SessionEvolution from "./components/SessionEvolution";
@@ -70,7 +71,7 @@ function AuthenticatedApp() {
   const { patients, setPatients } = usePatients();
   const { sessions, createSession } = useSessions();
   const { insurances, createInsurance, updateInsurance, deleteInsurance } = useInsurances();
-  const { users, createUser, updateUser, deleteUser } = useUsers();
+  const { users, createUser, updateUser, deleteUser, inviteUser } = useUsers();
 
   const navigate = useNavigate();
   const location = useLocation();
@@ -232,6 +233,7 @@ function AuthenticatedApp() {
                   onCreateUser={createUser}
                   onUpdateUser={updateUser}
                   onDeleteUser={deleteUser}
+                  onInviteUser={inviteUser}
                   rolePermissions={rolePermissions}
                   onUpdateRolePermissions={setRolePermissions}
                   userPermissions={activePermissions}
@@ -304,6 +306,16 @@ export default function App() {
     return (
       <Routes>
         <Route path="/anamnese/:token" element={<PublicAnamnesePage />} />
+      </Routes>
+    );
+  }
+
+  // Public, no-login password-reset page (link sent by e-mail) — same treatment as
+  // /f/:token and /anamnese/:token above: reachable regardless of auth state.
+  if (location.pathname.startsWith("/reset-senha")) {
+    return (
+      <Routes>
+        <Route path="/reset-senha" element={<ResetPasswordPage />} />
       </Routes>
     );
   }

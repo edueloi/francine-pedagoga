@@ -61,5 +61,13 @@ export function useUsers() {
     [authFetch, reloadUsers]
   );
 
-  return { users, loading, error, reloadUsers, createUser, updateUser, deleteUser };
+  const inviteUser = useCallback(
+    async (id: string) => {
+      const res = await authFetch(`/api/users/${id}/invite`, { method: "POST" });
+      if (!res.ok) throw new Error((await res.json()).error || "Falha ao enviar convite");
+    },
+    [authFetch]
+  );
+
+  return { users, loading, error, reloadUsers, createUser, updateUser, deleteUser, inviteUser };
 }
