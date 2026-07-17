@@ -114,6 +114,9 @@ export default function InsurancesModule({
                     onChange={(e) => setSelectedPatId(e.target.value)}
                     className="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 text-xs text-slate-700 focus:ring-2 focus:ring-[#1070ca] focus:bg-white focus:outline-none transition-all font-semibold"
                   >
+                    {patients.length === 0 && (
+                      <option value="" disabled>Nenhum paciente cadastrado</option>
+                    )}
                     {patients.map(p => (
                       <option key={p.id} value={p.id}>{p.nome}</option>
                     ))}

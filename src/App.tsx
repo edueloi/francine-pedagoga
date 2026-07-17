@@ -6,6 +6,7 @@ import SplashScreen from "./components/SplashScreen";
 import PublicFormPage from "./components/PublicFormPage";
 import PublicAnamnesePage from "./components/PublicAnamnesePage";
 import ResetPasswordPage from "./components/ResetPasswordPage";
+import AcceptInvitePage from "./components/AcceptInvitePage";
 import Dashboard from "./components/Dashboard";
 import PatientsModule from "./components/PatientsModule";
 import SessionEvolution from "./components/SessionEvolution";
@@ -322,6 +323,16 @@ export default function App() {
     return (
       <Routes>
         <Route path="/reset-senha" element={<ResetPasswordPage />} />
+      </Routes>
+    );
+  }
+
+  // Public, no-login invite-acceptance page (sign-up link sent by e-mail) — same
+  // treatment as the routes above: reachable regardless of auth state.
+  if (location.pathname.startsWith("/aceitar-convite")) {
+    return (
+      <Routes>
+        <Route path="/aceitar-convite" element={<AcceptInvitePage />} />
       </Routes>
     );
   }

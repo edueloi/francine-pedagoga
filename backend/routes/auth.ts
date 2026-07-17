@@ -121,4 +121,63 @@ router.post("/reset-password", async (req, res) => {
   res.json({ message: "Senha redefinida com sucesso." });
 });
 
+// GET /api/auth/invite/:token — public lookup so the accept-invite page can show the
+// invited e-mail/role before the person fills in their name and password.
+router.get("/invite/:token", async (req, res) => {
+  const [rows]: any = await pool.query(
+    "SELECT email, role, expires_at FROM pending_invites WHERE token = ?",
+    [req.params.token]
+  );
+  if (rows.length === 0) {
+    return res.status(404).json({ error: "Convite não encontrado ou já utilizado" });
+  }
+  const invite = rows[0];
+  if (new Date(invite.expires_at) < new Date()) {
+    return res.status(400).json({ error: "Este convite expirou. Solicite um novo à administração." });
+  }
+  res.json({ email: invite.email, role: invite.role });
+});
+
+// POST /api/auth/accept-invite — the invitee sets their name/password and the account
+// is created for the first time (nothing exists in `users` until this point).
+router.post("/accept-invite", async (req, res) => {
+  const { token, name, password } = req.body || {};
+  if (!token || !name || !password || String(password).length < 6) {
+    return res.status(400).json({ error: "Token, nome e senha (mínimo 6 caracteres) são obrigatórios" });
+  }
+
+  const [rows]: any = await pool.query("SELECT * FROM pending_invites WHERE token = ?", [token]);
+  if (rows.length === 0) {
+    return res.status(400).json({ error: "Convite inválido ou já utilizado" });
+  }
+  const invite = rows[0];
+  if (new Date(invite.expires_at) < new Date()) {
+    return res.status(400).json({ error: "Este convite expirou. Solicite um novo à administração." });
+  }
+
+  const [existingUser]: any = await pool.query("SELECT id FROM users WHERE email = ?", [invite.email]);
+  if (existingUser.length > 0) {
+    await pool.query("DELETE FROM pending_invites WHERE id = ?", [invite.id]);
+    return res.status(409).json({ error: "Já existe uma conta cadastrada com este e-mail" });
+  }
+
+  const hashed = await bcrypt.hash(password, 10);
+  const [result]: any = await pool.query(
+    "INSERT INTO users (name, email, password, role, permissions) VALUES (?, ?, ?, ?, ?)",
+    [name, invite.email, hashed, invite.role, invite.permissions]
+  );
+  await pool.query("DELETE FROM pending_invites WHERE id = ?", [invite.id]);
+
+  const token2 = jwt.sign(
+    { id: result.insertId, name, email: invite.email, role: invite.role },
+    process.env.JWT_SECRET as string,
+    { expiresIn: "7d" }
+  );
+
+  res.status(201).json({
+    token: token2,
+    user: { id: result.insertId, name, email: invite.email, role: invite.role },
+  });
+});
+
 export default router;

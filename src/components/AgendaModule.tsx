@@ -144,10 +144,10 @@ export default function AgendaModule({ patients, userRole, userPermissions }: Ag
   };
 
   return (
-    <div className="space-y-2">
+    <div className="space-y-2 -my-4 sm:-my-6 lg:-my-8">
       <div
         ref={toolbarRef}
-        className="sticky top-0 z-40 -mx-4 -mt-4 bg-[#fcfbfa] px-4 pb-2 pt-2 sm:-mx-6 sm:-mt-6 sm:px-6 sm:pt-3 lg:-mx-8 lg:-mt-8 lg:px-8 lg:pt-3"
+        className="sticky top-0 z-40 bg-[#fcfbfa] pb-2 pt-2 sm:pt-3 lg:pt-3"
         style={{ isolation: 'isolate' }}
       >
         <div className="rounded-2xl border border-slate-200 bg-white shadow-sm">

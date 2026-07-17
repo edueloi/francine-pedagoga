@@ -143,7 +143,7 @@ export default function ReportsModule() {
               <div className="space-y-3">
                 {Object.entries(summary.appointmentsByStatus).length > 0 ? (
                   Object.entries(summary.appointmentsByStatus).map(([status, total]) => {
-                    const pct = summary.totalAppointments > 0 ? Math.round((total / summary.totalAppointments) * 100) : 0;
+                    const pct = summary.totalAppointments > 0 ? Math.round((Number(total) / summary.totalAppointments) * 100) : 0;
                     return (
                       <div key={status} className="space-y-1">
                         <div className="flex items-center justify-between text-xs">

@@ -9,6 +9,7 @@ const router = express.Router();
 router.use(authMiddleware);
 
 const RESET_TOKEN_TTL_MS = 60 * 60 * 1000; // 1 hora
+const INVITE_TTL_MS = 7 * 24 * 60 * 60 * 1000; // 7 dias
 
 router.get("/", async (_req, res) => {
   const [rows] = await pool.query(
@@ -137,6 +138,71 @@ router.post("/:id/invite", async (req, res) => {
     return res.status(422).json({ error: "Não foi possível enviar o e-mail de convite. Verifique o endereço informado." });
   }
   res.json({ success: true });
+});
+
+// ── Pending invites: sign-up invitations for people who don't have an account yet ──
+// Distinct from POST /:id/invite above (that one resends a password-reset link to an
+// already-existing account). Here nothing is created in `users` until the invitee
+// actually accepts the link (see POST /api/auth/accept-invite).
+
+// GET /api/users/invites — list pending (not yet accepted, not expired) invites.
+router.get("/invites", async (_req, res) => {
+  const [rows]: any = await pool.query(
+    "SELECT id, email, role, permissions, expires_at, created_at FROM pending_invites WHERE expires_at > NOW() ORDER BY created_at DESC"
+  );
+  res.json(rows);
+});
+
+// POST /api/users/invites — create a new sign-up invite and e-mail the link.
+router.post("/invites", async (req, res) => {
+  const { email, role, permissions } = req.body || {};
+  if (!email || typeof email !== "string") {
+    return res.status(400).json({ error: "O campo 'email' é obrigatório" });
+  }
+  if (!role) {
+    return res.status(400).json({ error: "O campo 'role' é obrigatório" });
+  }
+
+  const [existingUser]: any = await pool.query("SELECT id FROM users WHERE email = ?", [email]);
+  if (existingUser.length > 0) {
+    return res.status(409).json({ error: "Já existe uma conta cadastrada com este e-mail" });
+  }
+
+  const token = crypto.randomBytes(32).toString("hex");
+  const expiresAt = new Date(Date.now() + INVITE_TTL_MS);
+
+  // Replace any previous pending invite for the same e-mail instead of stacking duplicates.
+  await pool.query("DELETE FROM pending_invites WHERE email = ?", [email]);
+  const [result]: any = await pool.query(
+    "INSERT INTO pending_invites (email, role, permissions, token, expires_at, invited_by) VALUES (?, ?, ?, ?, ?, ?)",
+    [email, role, permissions ? JSON.stringify(permissions) : null, token, expiresAt, req.user!.id]
+  );
+
+  const [settingRows]: any = await pool.query(
+    "SELECT enabled, subject, message_template FROM email_settings WHERE setting_key = 'user_invite'"
+  );
+  const setting = settingRows[0];
+  if (setting && setting.enabled) {
+    const link = `${process.env.APP_URL || ""}/aceitar-convite?token=${token}`;
+    const html = (setting.message_template as string).replace(/\{link\}/g, link);
+    const sent = await sendEmail(email, setting.subject, html);
+    if (!sent) {
+      return res.status(422).json({ error: "Convite criado, mas não foi possível enviar o e-mail. Verifique o endereço informado." });
+    }
+  }
+
+  const [rows]: any = await pool.query(
+    "SELECT id, email, role, permissions, expires_at, created_at FROM pending_invites WHERE id = ?",
+    [result.insertId]
+  );
+  res.status(201).json(rows[0]);
+});
+
+// DELETE /api/users/invites/:id — cancel a pending invite before it's accepted.
+router.delete("/invites/:id", async (req, res) => {
+  const [result]: any = await pool.query("DELETE FROM pending_invites WHERE id = ?", [req.params.id]);
+  if (result.affectedRows === 0) return res.status(404).json({ error: "Não encontrado" });
+  res.status(204).end();
 });
 
 export default router;

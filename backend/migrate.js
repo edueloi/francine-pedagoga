@@ -412,6 +412,24 @@ async function migrate() {
   await addColumnIfMissing(conn, "users", "data_nascimento", "DATE NULL");
   await addColumnIfMissing(conn, "users", "abordagens", "TEXT NULL COMMENT 'lista de abordagens/especialidades, separadas por vírgula'");
 
+  // ---- PENDING INVITES: convite de cadastro para quem ainda não tem conta ----
+  // Diferente de users.reset_token (que serve para redefinir senha de uma conta já
+  // existente), aqui a conta em si só é criada quando a pessoa aceita o convite —
+  // até lá só existe esta linha "pendente", com token de expiração própria.
+  await conn.query(`
+    CREATE TABLE IF NOT EXISTS pending_invites (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      email VARCHAR(255) NOT NULL,
+      role ENUM('Administrador','Profissional','Secretária','Visualização restrita') NOT NULL DEFAULT 'Profissional',
+      permissions JSON NULL,
+      token VARCHAR(255) NOT NULL UNIQUE,
+      expires_at DATETIME NOT NULL,
+      invited_by INT NULL,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      CONSTRAINT fk_pending_invites_invited_by FOREIGN KEY (invited_by) REFERENCES users(id) ON DELETE SET NULL
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+  `);
+
   // ---- WHATSAPP BOT: configurações de templates de mensagem (editáveis pela UI) ----
   await conn.query(`
     CREATE TABLE IF NOT EXISTS whatsapp_settings (
@@ -529,8 +547,8 @@ async function migrate() {
       key: "user_invite",
       subject: "Convite de acesso — Espaço Aprender a Ser",
       template:
-        "<p>Olá, {nome}!</p><p>Você foi convidado(a) a acessar o sistema do Espaço Aprender a Ser. Clique no link abaixo para definir sua senha:</p>" +
-        "<p><a href=\"{link}\">{link}</a></p><p>O link expira em 1 hora.</p>",
+        "<p>Olá!</p><p>Você foi convidado(a) a acessar o sistema do Espaço Aprender a Ser. Clique no link abaixo para criar seu cadastro:</p>" +
+        "<p><a href=\"{link}\">{link}</a></p><p>Este link expira em 7 dias.</p>",
     },
   ];
   for (const { key, subject, template } of DEFAULT_EMAIL_TEMPLATES) {

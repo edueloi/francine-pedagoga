@@ -306,6 +306,9 @@ export default function ProtocolsModule({ patients, userRole, userPermissions }:
               }}
               className="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 text-xs font-black text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#1070ca]"
             >
+              {patients.length === 0 && (
+                <option value="" disabled>Nenhum paciente cadastrado</option>
+              )}
               {patients.map(p => (
                 <option key={p.id} value={p.id}>{p.nome} ({p.idade} anos)</option>
               ))}

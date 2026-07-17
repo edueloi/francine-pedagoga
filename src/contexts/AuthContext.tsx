@@ -14,6 +14,7 @@ interface AuthContextValue {
   login: (email: string, password: string) => Promise<void>;
   logout: () => void;
   authFetch: (url: string, init?: RequestInit) => Promise<Response>;
+  setSession: (token: string, user: AuthUser) => void;
 }
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
@@ -25,6 +26,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return stored ? JSON.parse(stored) : null;
   });
 
+  // Shared by login() and the accept-invite flow (both receive a fresh { token, user }
+  // pair from the backend and need to persist it the same way).
+  const setSession = useCallback((newToken: string, newUser: AuthUser) => {
+    setToken(newToken);
+    setUser(newUser);
+    localStorage.setItem("auth_token", newToken);
+    localStorage.setItem("auth_user", JSON.stringify(newUser));
+  }, []);
+
   const login = useCallback(async (email: string, password: string) => {
     const res = await fetch("/api/auth/login", {
       method: "POST",
@@ -35,11 +45,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (!res.ok) {
       throw new Error(data.error || "Falha ao autenticar");
     }
-    setToken(data.token);
-    setUser(data.user);
-    localStorage.setItem("auth_token", data.token);
-    localStorage.setItem("auth_user", JSON.stringify(data.user));
-  }, []);
+    setSession(data.token, data.user);
+  }, [setSession]);
 
   const logout = useCallback(() => {
     setToken(null);
@@ -69,7 +76,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   );
 
   return (
-    <AuthContext.Provider value={{ user, token, login, logout, authFetch }}>
+    <AuthContext.Provider value={{ user, token, login, logout, authFetch, setSession }}>
       {children}
     </AuthContext.Provider>
   );

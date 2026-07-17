@@ -119,6 +119,9 @@ Diretora Técnica: Francine Maria Tersi`);
               onChange={(e) => setSelectedPatId(e.target.value)}
               className="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 text-xs text-slate-700 font-semibold focus:ring-2 focus:ring-[#1070ca] focus:bg-white focus:outline-none transition-all"
             >
+              {patients.length === 0 && (
+                <option value="" disabled>Nenhum paciente cadastrado</option>
+              )}
               {patients.map(p => (
                 <option key={p.id} value={p.id}>{p.nome}</option>
               ))}

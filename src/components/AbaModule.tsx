@@ -451,6 +451,9 @@ export default function AbaModule({ patients, userRole, userPermissions }: AbaMo
             }}
             className="w-full bg-white text-slate-800 border-none rounded-xl p-2.5 text-xs font-black focus:outline-none focus:ring-2 focus:ring-blue-400"
           >
+            {patients.length === 0 && (
+              <option value="" disabled>Nenhum paciente cadastrado</option>
+            )}
             {patients.map(p => (
               <option key={p.id} value={p.id}>{p.nome} ({p.idade} anos)</option>
             ))}
@@ -672,6 +675,9 @@ export default function AbaModule({ patients, userRole, userPermissions }: AbaMo
                   onChange={(e) => setSelectedTarget(e.target.value)}
                   className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2 text-xs font-bold text-slate-700 focus:outline-none focus:ring-1 focus:ring-[#1070ca]"
                 >
+                  {(!selectedProgram?.estímuloAlvo || selectedProgram.estímuloAlvo.length === 0) && (
+                    <option value="" disabled>Nenhum estímulo alvo cadastrado</option>
+                  )}
                   {selectedProgram?.estímuloAlvo.map((alvo, idx) => (
                     <option key={idx} value={alvo}>{alvo}</option>
                   ))}

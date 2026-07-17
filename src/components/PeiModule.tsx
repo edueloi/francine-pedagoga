@@ -216,6 +216,9 @@ export default function PeiModule({ patients, userRole, userPermissions }: PeiMo
               onChange={(e) => setSelectedPatId(e.target.value)}
               className="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 text-xs font-semibold text-slate-700 focus:outline-none focus:ring-2 focus:ring-[#1070ca]"
             >
+              {patients.length === 0 && (
+                <option value="" disabled>Nenhum paciente cadastrado</option>
+              )}
               {patients.map(p => (
                 <option key={p.id} value={p.id}>{p.nome} ({p.diagnostico})</option>
               ))}

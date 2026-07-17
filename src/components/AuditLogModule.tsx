@@ -29,9 +29,11 @@ import { AuditLog, UserRole, SystemUser, UserPermissions, ModulePermission } fro
 import { useAuditLogs } from "../hooks/useAuditLogs";
 import { useAuth } from "../contexts/AuthContext";
 import { useWhatsapp } from "../hooks/useWhatsapp";
+import { useInvites } from "../hooks/useInvites";
 import { useToast, ConfirmModal } from "./UI";
 import { WhatsappTemplatesEditor } from "./WhatsappTemplatesEditor";
 import { EmailTemplatesEditor } from "./EmailTemplatesEditor";
+import InviteUserModal from "./InviteUserModal";
 
 interface AuditLogModuleProps {
   userRole: UserRole;
@@ -80,10 +82,12 @@ export default function AuditLogModule({
   const [activeSubTab, setActiveSubTab] = useState<"users" | "matrix" | "logs" | "whatsapp" | "email">("users");
   const { logs, loading: logsLoading, error: logsError, createLog } = useAuditLogs();
   const whatsapp = useWhatsapp();
+  const { invites, createInvite, cancelInvite } = useInvites();
   const toast = useToast();
   const [roleFilter, setRoleFilter] = useState("todos");
   const [isBackingUp, setIsBackingUp] = useState(false);
   const [isSavingUser, setIsSavingUser] = useState(false);
+  const [showInviteModal, setShowInviteModal] = useState(false);
 
   // Confirm modals state
   const [confirmDisconnectOpen, setConfirmDisconnectOpen] = useState(false);
@@ -295,6 +299,15 @@ export default function AuditLogModule({
     }
   };
 
+  const handleCancelInvite = async (id: string, email: string) => {
+    try {
+      await cancelInvite(id);
+      toast.success(`Convite para ${email} cancelado.`);
+    } catch (err: any) {
+      toast.error(err.message || "Falha ao cancelar convite.");
+    }
+  };
+
   const handleToggleCustomUserPerm = (moduleKey: keyof UserPermissions, action: keyof ModulePermission) => {
     const updated = { ...customPerms };
     updated[moduleKey] = {
@@ -387,20 +400,73 @@ export default function AuditLogModule({
                   <p className="text-[11px] text-slate-400">Total de {visibleUsers.length} acessos configurados no sistema.</p>
                 </div>
                 {!showAddForm && (
-                  <button
-                    onClick={() => {
-                      resetForm();
-                      setCustomPerms({ ...rolePermissions[UserRole.PROFESSIONAL] });
-                      setShowAddForm(true);
-                    }}
-                    className="px-4 py-2 bg-[#1070ca] hover:bg-[#0b5194] text-white rounded-xl text-xs font-black uppercase tracking-wider transition flex items-center gap-2 cursor-pointer shadow-xs"
-                  >
-                    <UserPlus className="h-4 w-4" /> Novo Usuário
-                  </button>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => setShowInviteModal(true)}
+                      className="px-4 py-2 bg-white border border-slate-200 hover:border-blue-200 text-slate-600 hover:text-[#1070ca] rounded-xl text-xs font-black uppercase tracking-wider transition flex items-center gap-2 cursor-pointer"
+                    >
+                      <Mail className="h-4 w-4" /> Convidar por E-mail
+                    </button>
+                    <button
+                      onClick={() => {
+                        resetForm();
+                        setCustomPerms({ ...rolePermissions[UserRole.PROFESSIONAL] });
+                        setShowAddForm(true);
+                      }}
+                      className="px-4 py-2 bg-[#1070ca] hover:bg-[#0b5194] text-white rounded-xl text-xs font-black uppercase tracking-wider transition flex items-center gap-2 cursor-pointer shadow-xs"
+                    >
+                      <UserPlus className="h-4 w-4" /> Novo Usuário
+                    </button>
+                  </div>
                 )}
               </div>
 
               <div className="space-y-3">
+                {invites.map((invite) => {
+                  const roleColors = {
+                    [UserRole.ADMIN]: "bg-rose-50 text-rose-700 border-rose-100",
+                    [UserRole.PROFESSIONAL]: "bg-blue-50 text-[#1070ca] border-blue-100",
+                    [UserRole.SECRETARY]: "bg-amber-50 text-amber-700 border-amber-100",
+                    [UserRole.RESTRICTED]: "bg-slate-50 text-slate-600 border-slate-100"
+                  };
+                  return (
+                    <div
+                      key={`invite-${invite.id}`}
+                      className="p-4 rounded-2xl border border-dashed border-amber-200 bg-amber-50/30 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4"
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className="h-10 w-10 rounded-full bg-amber-100 text-amber-600 font-black flex items-center justify-center text-xs select-none">
+                          <Mail className="h-4 w-4" />
+                        </div>
+                        <div>
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <h4 className="text-xs font-black text-slate-800">{invite.email}</h4>
+                            <span className={`text-[9px] font-black uppercase px-2 py-0.5 rounded-md border ${roleColors[invite.role]}`}>
+                              {invite.role}
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-1.5 mt-1">
+                            <span className="h-1.5 w-1.5 rounded-full bg-amber-400" />
+                            <span className="text-[9px] text-amber-600 uppercase font-bold tracking-wider">Convite Pendente</span>
+                            <span className="text-[9px] text-slate-300">•</span>
+                            <span className="text-[9px] text-slate-400 font-medium">
+                              Expira em {new Date(invite.expiresAt).toLocaleDateString("pt-BR")}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+
+                      <button
+                        onClick={() => handleCancelInvite(invite.id, invite.email)}
+                        className="p-1.5 bg-white border border-slate-100 hover:border-rose-200 rounded-lg text-slate-400 hover:text-rose-500 transition cursor-pointer self-end sm:self-auto"
+                        title="Cancelar convite"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </button>
+                    </div>
+                  );
+                })}
+
                 {visibleUsers.map(u => {
                   const initials = u.name.split(" ").map(n => n[0]).join("").substring(0, 2).toUpperCase();
                   const roleColors = {
@@ -1008,6 +1074,12 @@ export default function AuditLogModule({
         confirmLabel="Excluir"
         cancelLabel="Cancelar"
         variant="danger"
+      />
+
+      <InviteUserModal
+        isOpen={showInviteModal}
+        onClose={() => setShowInviteModal(false)}
+        onInvite={createInvite}
       />
     </div>
   );
