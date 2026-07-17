@@ -393,12 +393,6 @@ export default function LandingPage({ onEnterSystem }: LandingPageProps) {
             <div className="h-14 w-16 sm:h-16 sm:w-20 flex items-center justify-center">
               <LogoSVG className="h-full w-full" />
             </div>
-            <div>
-              <h1 className="font-display font-extrabold text-sm sm:text-lg text-slate-900 tracking-tight leading-tight">
-                Espaço <span className="text-[#1070ca]">Aprender a Ser</span>
-              </h1>
-              <p className="text-[9px] sm:text-[10px] text-slate-400 font-mono tracking-wider uppercase">Clínica Multidisciplinar Integrada</p>
-            </div>
           </div>
 
           {/* Premium Modern Navigation - Absolutely no retro black block borders */}
@@ -1035,7 +1029,7 @@ export default function LandingPage({ onEnterSystem }: LandingPageProps) {
                     <img
                       src="/images/2.png"
                       alt="Francine Tersi em atendimento no Espaço Aprender a Ser"
-                      className="w-full h-64 sm:h-80 object-cover object-[50%_15%]"
+                      className="w-full h-96 sm:h-[28rem] object-cover object-[50%_20%]"
                     />
                   </div>
 
