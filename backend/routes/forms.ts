@@ -2,6 +2,7 @@ import express from "express";
 import crypto from "crypto";
 import { pool } from "../db";
 import { authMiddleware } from "../middleware/auth";
+import { sendEmail } from "../services/emailService";
 
 const router = express.Router();
 router.use(authMiddleware);
@@ -82,6 +83,33 @@ function computeScoreAndInterpretation(form: any, questions: any[], answerMap: R
   return { totalScore, matched };
 }
 
+// Fire-and-forget e-mail with the form result, sent to the linked patient (if any and if
+// they have an e-mail on file). Failures are logged only — never affects the response
+// already sent to the client, which already happened by the time this runs.
+async function sendFormResultEmail(patientId: any, matched: any, totalScore: number) {
+  if (!patientId) return;
+  try {
+    const [settingRows]: any = await pool.query(
+      "SELECT enabled, subject, message_template FROM email_settings WHERE setting_key = 'form_result'"
+    );
+    const setting = settingRows[0];
+    if (!setting || !setting.enabled) return;
+
+    const [patientRows]: any = await pool.query("SELECT nome, email FROM patients WHERE id = ?", [patientId]);
+    const patient = patientRows[0];
+    const email = (patient?.email || "").trim();
+    if (!email) return;
+
+    const resultado = matched?.label || matched?.title || `Pontuação total: ${totalScore}`;
+    const html = (setting.message_template as string)
+      .replace(/\{nome\}/g, patient.nome || "Paciente")
+      .replace(/\{resultado\}/g, resultado);
+    await sendEmail(email, setting.subject, html);
+  } catch (err: any) {
+    console.error(`[Forms] Falha ao enviar e-mail de resultado para paciente #${patientId}:`, err.message);
+  }
+}
+
 // Persists a form response row and returns the mapped record. Shared by the authenticated
 // and public POST .../responses handlers so scoring/storage logic lives in one place.
 async function storeFormResponse(formId: string, patientId: any, answerMap: Record<string, any>, form: any, questions: any[]) {
@@ -94,6 +122,7 @@ async function storeFormResponse(formId: string, patientId: any, answerMap: Reco
   );
 
   const [rows]: any = await pool.query("SELECT * FROM form_responses WHERE id = ?", [result.insertId]);
+  sendFormResultEmail(patientId, matched, totalScore);
   return {
     ...rows[0],
     answers: parseJsonField(rows[0].answers) ?? {},

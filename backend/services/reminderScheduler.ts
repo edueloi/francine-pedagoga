@@ -13,6 +13,7 @@
 import cron from "node-cron";
 import { pool } from "../db";
 import { sendText } from "./whatsappService";
+import { sendEmail } from "./emailService";
 
 const TIMEZONE = "America/Sao_Paulo";
 
@@ -38,6 +39,17 @@ async function getSetting(key: "reminder_24h" | "reminder_1h" | "birthday" | "in
   );
   if (rows.length === 0) return null;
   return { enabled: !!rows[0].enabled, template: rows[0].message_template };
+}
+
+async function getEmailSetting(
+  key: "reminder_24h" | "reminder_1h" | "appointment_confirmed" | "appointment_thanks" | "form_result" | "password_reset" | "user_invite"
+): Promise<{ enabled: boolean; subject: string; template: string } | null> {
+  const [rows]: any = await pool.query(
+    "SELECT enabled, subject, message_template FROM email_settings WHERE setting_key = ?",
+    [key]
+  );
+  if (rows.length === 0) return null;
+  return { enabled: !!rows[0].enabled, subject: rows[0].subject, template: rows[0].message_template };
 }
 
 // ─── Lembretes de atendimento (24h e 1h antes) ─────────────────────────────
@@ -75,8 +87,10 @@ async function checkReminderWindow(opts: {
   const template = setting?.template ||
     "🔔 *Lembrete de Atendimento — Espaço Aprender a Ser*\n\nOlá! O atendimento de *{nome}* está agendado para {data} às {hora}.";
 
+  const emailSetting = await getEmailSetting(settingKey);
+
   const [rows]: any = await pool.query(
-    `SELECT a.id, a.start_time, p.nome AS patient_name, p.telefone AS patient_phone
+    `SELECT a.id, a.start_time, p.nome AS patient_name, p.telefone AS patient_phone, p.email AS patient_email
      FROM agenda_events a
      JOIN patients p ON p.id = a.patient_id
      WHERE a.status IN ('confirmado', 'pendente')
@@ -88,22 +102,41 @@ async function checkReminderWindow(opts: {
   for (const row of rows) {
     const start = new Date(row.start_time);
     const phone = (row.patient_phone || "").trim();
+    const email = (row.patient_email || "").trim();
+    const vars = {
+      nome: row.patient_name || "Paciente",
+      hora: fmtTime(start),
+      data: fmtDate(start),
+    };
 
     if (!phone) {
-      console.warn(`[ReminderScheduler] Evento #${row.id}: paciente "${row.patient_name}" sem telefone cadastrado — lembrete não enviado.`);
+      console.warn(`[ReminderScheduler] Evento #${row.id}: paciente "${row.patient_name}" sem telefone cadastrado — lembrete WhatsApp não enviado.`);
     } else {
-      const message = renderTemplate(template, {
-        nome: row.patient_name || "Paciente",
-        hora: fmtTime(start),
-        data: fmtDate(start),
-      });
+      const message = renderTemplate(template, vars);
       try {
         const sent = await sendText(phone, message);
         if (!sent) {
           console.warn(`[ReminderScheduler] Evento #${row.id}: falha ao enviar lembrete via WhatsApp para "${row.patient_name}".`);
         }
       } catch (err: any) {
-        console.error(`[ReminderScheduler] Evento #${row.id}: erro inesperado ao enviar lembrete:`, err.message);
+        console.error(`[ReminderScheduler] Evento #${row.id}: erro inesperado ao enviar lembrete via WhatsApp:`, err.message);
+      }
+    }
+
+    if (emailSetting && emailSetting.enabled) {
+      if (!email) {
+        console.warn(`[ReminderScheduler] Evento #${row.id}: paciente "${row.patient_name}" sem e-mail cadastrado — lembrete por e-mail não enviado.`);
+      } else {
+        const subject = emailSetting.subject || "Lembrete de Atendimento";
+        const html = renderTemplate(emailSetting.template, vars);
+        try {
+          const sent = await sendEmail(email, subject, html);
+          if (!sent) {
+            console.warn(`[ReminderScheduler] Evento #${row.id}: falha ao enviar lembrete por e-mail para "${row.patient_name}".`);
+          }
+        } catch (err: any) {
+          console.error(`[ReminderScheduler] Evento #${row.id}: erro inesperado ao enviar lembrete por e-mail:`, err.message);
+        }
       }
     }
 

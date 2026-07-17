@@ -7,9 +7,13 @@ interface CrudOptions {
   columns: string[];
   filterableBy?: string[];
   orderBy?: string;
+  // Optional hook fired after a successful PUT, receiving the row *before* and *after*
+  // the update. Used by agenda_events to trigger transactional e-mails on status change
+  // without duplicating this generic CRUD route just for that one table.
+  onAfterUpdate?: (before: any, after: any) => void;
 }
 
-export function createCrudRouter({ table, columns, filterableBy = [], orderBy = "id DESC" }: CrudOptions) {
+export function createCrudRouter({ table, columns, filterableBy = [], orderBy = "id DESC", onAfterUpdate }: CrudOptions) {
   const router = express.Router();
   router.use(authMiddleware);
 
@@ -53,12 +57,18 @@ export function createCrudRouter({ table, columns, filterableBy = [], orderBy = 
   });
 
   router.put("/:id", async (req, res) => {
+    const [beforeRows]: any = onAfterUpdate
+      ? await pool.query(`SELECT * FROM ${table} WHERE id = ?`, [req.params.id])
+      : [null];
     const values = columns.map((col) => req.body[col] ?? null);
     const setClause = columns.map((col) => `${col} = ?`).join(", ");
     await pool.query(`UPDATE ${table} SET ${setClause} WHERE id = ?`, [...values, req.params.id]);
     const [rows]: any = await pool.query(`SELECT * FROM ${table} WHERE id = ?`, [req.params.id]);
     if (rows.length === 0) return res.status(404).json({ error: "Não encontrado" });
     res.json(rows[0]);
+    if (onAfterUpdate && beforeRows && beforeRows[0]) {
+      onAfterUpdate(beforeRows[0], rows[0]);
+    }
   });
 
   router.delete("/:id", async (req, res) => {
