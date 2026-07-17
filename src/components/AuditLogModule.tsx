@@ -77,7 +77,7 @@ export default function AuditLogModule({
   // hidden from this list so it doesn't get confused with actual team accounts. It still
   // exists and can log in if ever needed; this is a display-only filter.
   const visibleUsers = users.filter((u) => u.email !== "admin@aprenderaser.com");
-  const [activeSubTab, setActiveSubTab] = useState<"users" | "matrix" | "logs" | "integrations">("users");
+  const [activeSubTab, setActiveSubTab] = useState<"users" | "matrix" | "logs" | "whatsapp" | "email">("users");
   const { logs, loading: logsLoading, error: logsError, createLog } = useAuditLogs();
   const whatsapp = useWhatsapp();
   const toast = useToast();
@@ -352,14 +352,24 @@ export default function AuditLogModule({
           <Shield className="h-4 w-4" /> Logs de Auditoria
         </button>
         <button
-          onClick={() => { setActiveSubTab("integrations"); resetForm(); }}
+          onClick={() => { setActiveSubTab("whatsapp"); resetForm(); }}
           className={`px-5 py-3 text-xs font-black uppercase tracking-wider transition border-b-2 flex items-center gap-2 cursor-pointer ${
-            activeSubTab === "integrations"
+            activeSubTab === "whatsapp"
               ? "border-[#1070ca] text-[#1070ca]"
               : "border-transparent text-slate-400 hover:text-slate-700 hover:border-slate-200"
           }`}
         >
-          <MessageCircle className="h-4 w-4" /> Integrações
+          <MessageCircle className="h-4 w-4" /> WhatsApp
+        </button>
+        <button
+          onClick={() => { setActiveSubTab("email"); resetForm(); }}
+          className={`px-5 py-3 text-xs font-black uppercase tracking-wider transition border-b-2 flex items-center gap-2 cursor-pointer ${
+            activeSubTab === "email"
+              ? "border-[#1070ca] text-[#1070ca]"
+              : "border-transparent text-slate-400 hover:text-slate-700 hover:border-slate-200"
+          }`}
+        >
+          <Mail className="h-4 w-4" /> E-mail
         </button>
       </div>
 
@@ -888,8 +898,8 @@ export default function AuditLogModule({
         </div>
       )}
 
-      {/* TAB 4: INTEGRATIONS (Bot de WhatsApp + templates de mensagem) */}
-      {activeSubTab === "integrations" && (
+      {/* TAB 4: WHATSAPP (conexão do bot + templates de mensagem) */}
+      {activeSubTab === "whatsapp" && (
         <div className="grid lg:grid-cols-12 gap-8 animate-fade-in">
           {/* Left: connection panel */}
           <div className="lg:col-span-4 space-y-6">
@@ -967,11 +977,13 @@ export default function AuditLogModule({
           <div className="lg:col-span-8">
             <WhatsappTemplatesEditor />
           </div>
+        </div>
+      )}
 
-          {/* Bottom: e-mail notification templates (full width) */}
-          <div className="lg:col-span-12 border-t border-slate-100 pt-8">
-            <EmailTemplatesEditor />
-          </div>
+      {/* TAB 5: E-MAIL (templates de notificação por e-mail) */}
+      {activeSubTab === "email" && (
+        <div className="animate-fade-in">
+          <EmailTemplatesEditor />
         </div>
       )}
 
