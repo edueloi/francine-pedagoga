@@ -113,6 +113,13 @@ const HEADER_HEIGHT = 48;
 const TIME_COL_WIDTH = 48;
 const COLLAPSE_HEIGHT = 0; // Horários pulados agora são totalmente escondidos (0px)
 
+// Event card layout budget: row 1 (time/icons) ~13px + row 2 (patient name) ~15px +
+// vertical padding (py-1 = 8px) + gap-px spacing ≈ 38px for the always-shown 2 lines.
+// The optional 3rd line (service/status) needs ~13px more room — below that, the row
+// is hidden entirely rather than rendered cramped/clipped.
+const EVENT_CARD_MIN_HEIGHT = 36;
+const MIN_HEIGHT_FOR_THIRD_LINE = 51;
+
 const typeMeta: Record<
   AgendaPlannerEventType,
   {
@@ -297,7 +304,7 @@ const layoutDayEvents = (
         positioned.push({
           ...event,
           top,
-          height: Math.max(rawHeight, 36),
+          height: Math.max(rawHeight, EVENT_CARD_MIN_HEIGHT),
           col: colIndex,
           colCount,
         });
@@ -1015,86 +1022,56 @@ export const AgendaPlanner: React.FC<AgendaPlannerProps> = ({
                                   style={{ backgroundColor: accent }}
                                 />
 
-                                <div className="flex h-full flex-col px-2 py-1 pl-3">
-                                  {/* Row 1: Time + Session + Status dot */}
-                                  <div className="flex items-center justify-between gap-1 leading-none">
+                                <div className="flex h-full flex-col justify-center gap-px px-2 py-1 pl-3 overflow-hidden">
+                                  {/* Row 1: Time + modality/recurrence + status dot — always shown */}
+                                  <div className="flex items-center justify-between gap-1 leading-none shrink-0">
                                     <div className="flex items-center gap-1 min-w-0">
-                                      <span className="text-[10px] font-black tabular-nums text-slate-600">
+                                      <span className="text-[10px] font-black tabular-nums text-slate-600 shrink-0">
                                         {event.startDate.toLocaleTimeString([], {
                                           hour: '2-digit',
                                           minute: '2-digit',
                                         })}
                                       </span>
                                       {(event.recurrenceIndex !== undefined && event.recurrenceCount !== undefined) && (
-                                        <span className="rounded-sm bg-indigo-50 px-1 py-px text-[7px] font-black text-indigo-600 border border-indigo-100/50 leading-none">
+                                        <span className="rounded-sm bg-indigo-50 px-1 py-px text-[7px] font-black text-indigo-600 border border-indigo-100/50 leading-none shrink-0">
                                           {event.recurrenceIndex}/{event.recurrenceCount}
                                         </span>
                                       )}
                                     </div>
                                     <div className="flex shrink-0 items-center gap-1">
                                       {event.modality === 'online' ? (
-                                        <span className="flex items-center gap-0.5 leading-none">
-                                          <Video size={9} style={{ color: AGENDA_MODALITY_COLORS.online }} />
-                                          {event.height > 50 && (
-                                            <span className="text-[7px] font-black uppercase" style={{ color: AGENDA_MODALITY_COLORS.online }}>Online</span>
-                                          )}
-                                        </span>
+                                        <Video size={9} style={{ color: AGENDA_MODALITY_COLORS.online }} />
                                       ) : event.modality === 'presencial' ? (
-                                        <span className="flex items-center gap-0.5 leading-none">
-                                          <MapPin size={9} className="text-slate-400" />
-                                          {event.height > 50 && (
-                                            <span className="text-[7px] font-black text-slate-400 uppercase">Presencial</span>
-                                          )}
-                                        </span>
+                                        <MapPin size={9} className="text-slate-400" />
                                       ) : null}
                                       <div className="h-1.5 w-1.5 rounded-full shrink-0" style={{ backgroundColor: status.color }} />
                                     </div>
                                   </div>
 
-                                  {/* Row 2: Patient Name */}
-                                  <p className="truncate text-[11px] sm:text-[12px] font-black leading-tight text-slate-900 tracking-tight">
+                                  {/* Row 2: Patient name — always shown, the single most important field */}
+                                  <p className="truncate text-[11px] sm:text-[12px] font-black leading-tight text-slate-900 tracking-tight shrink-0">
                                     {event.title}
                                   </p>
 
-                                  {/* Row 3: Service */}
-                                  {event.height > 40 && event.serviceName && (
-                                    <p className="truncate text-[9px] font-semibold text-slate-500 leading-none mt-0.5">
-                                      {event.serviceName}
-                                    </p>
-                                  )}
-
-                                  {event.height > 50 && event.description && (
-                                    <p className="line-clamp-1 text-[8px] leading-relaxed text-slate-400 font-medium">
-                                      {event.description}
-                                    </p>
-                                  )}
-
-                                  {/* Footer: Status chip + icon */}
-                                  {event.height > 40 && (
-                                    <div className="mt-auto flex items-center justify-between gap-1 pt-0.5">
-                                      <span
-                                        className="inline-flex items-center rounded-full px-1.5 py-px text-[7px] font-black uppercase tracking-wide"
-                                        style={{ backgroundColor: hexToRgba(status.color, 0.15), color: status.color }}
-                                      >
-                                        {status.label}
+                                  {/* Row 3: Service name + status label combined into one line — only when there's
+                                      room for a 3rd line (a fixed line-height budget, not a guessed pixel threshold) */}
+                                  {event.height >= MIN_HEIGHT_FOR_THIRD_LINE && (
+                                    <div className="flex items-center justify-between gap-1.5 shrink-0">
+                                      <span className="truncate text-[9px] font-semibold text-slate-500 leading-none min-w-0">
+                                        {event.serviceName || status.label}
                                       </span>
-                                      <div className="flex items-center gap-1">
-                                        {event.comandaId && (
-                                          <span
-                                            className="text-[7px] font-black px-1 py-px rounded border"
-                                            style={{
-                                              backgroundColor: hexToRgba(AGENDA_STATUS_COLORS.confirmed.base, 0.12),
-                                              color: AGENDA_STATUS_COLORS.confirmed.base,
-                                              borderColor: hexToRgba(AGENDA_STATUS_COLORS.confirmed.base, 0.3),
-                                            }}
-                                          >
-                                            $
-                                          </span>
-                                        )}
-                                        <span className="inline-flex items-center text-[8px] text-slate-400/60">
-                                          {meta.icon}
+                                      {event.comandaId && (
+                                        <span
+                                          className="shrink-0 text-[7px] font-black px-1 py-px rounded border leading-none"
+                                          style={{
+                                            backgroundColor: hexToRgba(AGENDA_STATUS_COLORS.confirmed.base, 0.12),
+                                            color: AGENDA_STATUS_COLORS.confirmed.base,
+                                            borderColor: hexToRgba(AGENDA_STATUS_COLORS.confirmed.base, 0.3),
+                                          }}
+                                        >
+                                          $
                                         </span>
-                                      </div>
+                                      )}
                                     </div>
                                   )}
                                 </div>
