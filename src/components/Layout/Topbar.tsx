@@ -25,7 +25,7 @@ export const Topbar: React.FC<TopbarProps> = ({ onMenuClick, onLogout, user }) =
   const initials = user?.name ? user.name.split(" ").map((n) => n[0]).join("").toUpperCase().slice(0, 2) : "U";
 
   return (
-    <header className="sticky top-0 z-30 h-14 sm:h-16 md:h-[72px] px-3 md:px-8 flex items-center justify-between transition-all duration-300 bg-white/90 backdrop-blur-xl border-b border-slate-200/50 shadow-[0_1px_3px_0_rgba(0,0,0,0.04),0_1px_2px_-1px_rgba(0,0,0,0.04)]">
+    <header className="sticky top-0 z-[100] h-14 sm:h-16 md:h-[72px] px-3 md:px-8 flex items-center justify-between transition-all duration-300 bg-white/90 backdrop-blur-xl border-b border-slate-200/50 shadow-[0_1px_3px_0_rgba(0,0,0,0.04),0_1px_2px_-1px_rgba(0,0,0,0.04)]">
       {/* Left: mobile menu toggle */}
       <div className="flex items-center gap-4 flex-1">
         <button

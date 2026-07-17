@@ -52,10 +52,10 @@ export default function LoginPage({ onLoginSuccess, onBackToLanding }: LoginPage
   };
 
   return (
-    <div id="login-page" className="min-h-screen bg-slate-50/50 flex flex-col md:flex-row selection:bg-[#1070ca] selection:text-white relative font-sans overflow-x-hidden">
-      
+    <div id="login-page" className="min-h-screen bg-slate-50/50 flex flex-col lg:flex-row selection:bg-[#1070ca] selection:text-white relative font-sans overflow-x-hidden">
+
       {/* LEFT COLUMN: Login and Form Interaction (~42% Width on Desktop) */}
-      <div className="w-full md:w-[42%] lg:w-[38%] min-h-screen bg-white p-6 sm:p-10 lg:p-12 flex flex-col justify-between border-r border-slate-100 z-10 shadow-sm">
+      <div className="w-full lg:w-[42%] xl:w-[38%] min-h-screen bg-white p-6 sm:p-10 lg:p-12 flex flex-col justify-between border-r border-slate-100 z-10 shadow-sm">
         
         {/* Top Header Row */}
         <div className="flex items-center justify-end">
@@ -68,8 +68,8 @@ export default function LoginPage({ onLoginSuccess, onBackToLanding }: LoginPage
         <div className="my-auto py-8 space-y-7 max-w-sm mx-auto w-full">
           
           {/* Logo & Subtitle */}
-          <div className="space-y-3 text-center md:text-left">
-            <div className="h-16 w-20 flex items-center justify-center mx-auto md:mx-0">
+          <div className="space-y-3 text-center lg:text-left">
+            <div className="h-16 w-20 flex items-center justify-center mx-auto lg:mx-0">
               <LogoSVG className="h-full w-full" />
             </div>
             <div>
@@ -251,8 +251,8 @@ export default function LoginPage({ onLoginSuccess, onBackToLanding }: LoginPage
 
       </div>
 
-      {/* RIGHT COLUMN: Premium Clinic Showcase Info Panel (58% Width - Hidden on Mobile) */}
-      <div className="hidden md:flex md:w-[58%] lg:w-[62%] bg-slate-900 relative overflow-hidden flex-col justify-between p-12 lg:p-16 text-white">
+      {/* RIGHT COLUMN: Premium Clinic Showcase Info Panel (Hidden on Mobile/Tablet, desktop only) */}
+      <div className="hidden lg:flex lg:w-[58%] xl:w-[62%] bg-slate-900 relative overflow-hidden flex-col justify-between p-12 lg:p-16 text-white">
         
         {/* Artistic glowing backgrounds */}
         <div className="absolute top-0 right-0 h-[450px] w-[450px] rounded-full bg-blue-500/10 blur-3xl" />

@@ -20,7 +20,9 @@ import {
   UserCheck,
   MessageCircle,
   QrCode,
-  Send
+  Send,
+  Eye,
+  EyeOff
 } from "lucide-react";
 import { AuditLog, UserRole, SystemUser, UserPermissions, ModulePermission } from "../types";
 import { useAuditLogs } from "../hooks/useAuditLogs";
@@ -86,6 +88,7 @@ export default function AuditLogModule({
   const [formName, setFormName] = useState("");
   const [formEmail, setFormEmail] = useState("");
   const [formPassword, setFormPassword] = useState("senha");
+  const [showFormPassword, setShowFormPassword] = useState(false);
   const [formRole, setFormRole] = useState<UserRole>(UserRole.PROFESSIONAL);
   const [formStatus, setFormStatus] = useState<"Ativo" | "Inativo">("Ativo");
   const [formDesc, setFormDesc] = useState("");
@@ -294,7 +297,7 @@ export default function AuditLogModule({
           <span className="p-1 rounded-xl bg-blue-50 text-[#1070ca] text-lg">🛡️</span> Usuários, Permissões & Segurança
         </h2>
         <p className="text-xs text-slate-500 font-medium">
-          Gerencie acessos de colaboradores, defina níveis de permissão granulares por perfil ou usuário, e acompanhe logs de conformidade (LGPD).
+          Gerencie acessos de usuários, defina níveis de permissão granulares por perfil ou usuário, e acompanhe logs de conformidade (LGPD).
         </p>
       </div>
 
@@ -351,7 +354,7 @@ export default function AuditLogModule({
               <div className="flex justify-between items-center pb-2 border-b border-slate-50">
                 <div>
                   <h3 className="font-display font-black text-slate-800 text-sm uppercase tracking-wider flex items-center gap-1.5">
-                    Colaboradores com Acesso
+                    Usuários com Acesso
                   </h3>
                   <p className="text-[11px] text-slate-400">Total de {users.length} acessos configurados no sistema.</p>
                 </div>
@@ -449,7 +452,7 @@ export default function AuditLogModule({
               <form onSubmit={handleSaveUser} className="bg-white rounded-3xl border border-slate-100 shadow-sm p-6 space-y-6">
                 <div className="flex justify-between items-center pb-2 border-b border-slate-100">
                   <h3 className="font-display font-black text-slate-800 text-sm uppercase tracking-wider flex items-center gap-1.5">
-                    {editingUserId ? "Editar Usuário & Acessos" : "Cadastrar Novo Colaborador"}
+                    {editingUserId ? "Editar Usuário & Acessos" : "Cadastrar Novo Usuário"}
                   </h3>
                   <button
                     type="button"
@@ -489,14 +492,24 @@ export default function AuditLogModule({
                     <label className="block text-[10px] font-black uppercase text-slate-400 tracking-wider mb-1">
                       {editingUserId ? "Nova Senha (opcional)" : "Senha Provisória *"}
                     </label>
-                    <input
-                      type="password"
-                      required={!editingUserId}
-                      value={formPassword}
-                      onChange={(e) => setFormPassword(e.target.value)}
-                      placeholder={editingUserId ? "Deixe em branco para manter a atual" : "Defina a senha"}
-                      className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-xs font-semibold text-slate-700 focus:outline-none focus:ring-1 focus:ring-[#1070ca] focus:bg-white"
-                    />
+                    <div className="relative">
+                      <input
+                        type={showFormPassword ? "text" : "password"}
+                        required={!editingUserId}
+                        value={formPassword}
+                        onChange={(e) => setFormPassword(e.target.value)}
+                        placeholder={editingUserId ? "Deixe em branco para manter a atual" : "Defina a senha"}
+                        className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 pr-9 text-xs font-semibold text-slate-700 focus:outline-none focus:ring-1 focus:ring-[#1070ca] focus:bg-white"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowFormPassword((v) => !v)}
+                        aria-label={showFormPassword ? "Ocultar senha" : "Mostrar senha"}
+                        className="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-400 hover:text-[#1070ca] transition-colors cursor-pointer"
+                      >
+                        {showFormPassword ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
+                      </button>
+                    </div>
                   </div>
 
                   <div>
