@@ -78,6 +78,7 @@ function AuthenticatedApp() {
 
   const navigate = useNavigate();
   const location = useLocation();
+  const isAgendaRoute = location.pathname === "/agenda";
 
   useDocumentTitle(PAGE_TITLES[location.pathname]);
 
@@ -124,7 +125,13 @@ function AuthenticatedApp() {
       <div className="flex-1 flex flex-col min-w-0 h-screen overflow-hidden relative">
         <Topbar onMenuClick={() => setMobileMenuOpen(!mobileMenuOpen)} onLogout={handleLogout} user={user} />
 
-        <main className="flex-1 min-w-0 p-4 sm:p-6 lg:p-8 overflow-y-auto overflow-x-hidden">
+        <main
+          className={`flex-1 min-w-0 overflow-y-auto overflow-x-hidden ${
+            isAgendaRoute
+              ? "px-4 sm:px-6 lg:px-8 pt-0 pb-4 sm:pb-6 lg:pb-8"
+              : "p-4 sm:p-6 lg:p-8"
+          }`}
+        >
           <Routes>
             <Route path="/" element={<Navigate to="/dashboard" replace />} />
 

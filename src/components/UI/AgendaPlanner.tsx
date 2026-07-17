@@ -297,7 +297,7 @@ const layoutDayEvents = (
         positioned.push({
           ...event,
           top,
-          height: Math.max(rawHeight, 32),
+          height: Math.max(rawHeight, 36),
           col: colIndex,
           colCount,
         });
@@ -1057,7 +1057,7 @@ export const AgendaPlanner: React.FC<AgendaPlannerProps> = ({
                                   </p>
 
                                   {/* Row 3: Service */}
-                                  {event.serviceName && (
+                                  {event.height > 40 && event.serviceName && (
                                     <p className="truncate text-[9px] font-semibold text-slate-500 leading-none mt-0.5">
                                       {event.serviceName}
                                     </p>
