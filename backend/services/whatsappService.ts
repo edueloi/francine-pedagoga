@@ -9,7 +9,6 @@
  */
 import fs from "fs";
 import path from "path";
-import { fileURLToPath } from "url";
 import QRCode from "qrcode";
 import makeWASocket, {
   useMultiFileAuthState,
@@ -18,8 +17,9 @@ import makeWASocket, {
   type WASocket,
 } from "@whiskeysockets/baileys";
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-export const SESSION_DIR = path.join(__dirname, "..", "whatsapp-session");
+// process.cwd() (not import.meta.url) so this resolves correctly both under `tsx` (ESM, dev)
+// and in the esbuild CJS bundle used in production, where import.meta is empty/undefined.
+export const SESSION_DIR = path.join(process.cwd(), "backend", "whatsapp-session");
 
 export type WhatsAppStatus = "disconnected" | "connecting" | "connected";
 
