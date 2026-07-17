@@ -159,6 +159,7 @@ export interface AgendaEvent {
   tipo: "Sessão" | "Avaliação" | "Reunião" | "Visita Escolar" | "Retorno";
   status: "confirmado" | "pendente" | "cancelado" | "realizado";
   alertas?: string;
+  insuranceId?: string;
 }
 
 export interface AuditLog {

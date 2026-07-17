@@ -172,6 +172,7 @@ export function agendaEventFromApi(row: any): AgendaEvent {
     tipo: row.tipo,
     status: row.status,
     alertas: row.alertas ?? undefined,
+    insuranceId: row.insurance_id != null ? String(row.insurance_id) : undefined,
   };
 }
 
@@ -184,6 +185,7 @@ export function agendaEventToApi(event: Partial<AgendaEvent>): Record<string, an
     tipo: event.tipo ?? "Sessão",
     status: event.status ?? "pendente",
     alertas: event.alertas ?? null,
+    insurance_id: event.insuranceId ?? null,
   };
 }
 

@@ -389,6 +389,9 @@ async function migrate() {
   await addColumnIfMissing(conn, "agenda_events", "reminder_1h_sent", "BOOLEAN DEFAULT FALSE");
   await addColumnIfMissing(conn, "patients", "birthday_reminder_sent_year", "INT NULL");
 
+  // ---- AGENDA EVENTS: vínculo com guia de convênio (idempotente) ----
+  await addColumnIfMissing(conn, "agenda_events", "insurance_id", "INT NULL");
+
   // ---- ANAMNESE: link público de preenchimento pelos pais (idempotente) ----
   // Diferente do backfill de "forms.share_token" acima, aqui o token NÃO é gerado
   // proativamente para todos os pacientes existentes — apenas quando a equipe clica em

@@ -18,6 +18,7 @@ import {
   Package,
   MapPin,
 } from 'lucide-react';
+import { AGENDA_TYPE_COLORS, AGENDA_STATUS_COLORS, AGENDA_MODALITY_COLORS, hexToRgba } from './agendaColors';
 
 const cx = (...classes: Array<string | false | null | undefined>) =>
   classes.filter(Boolean).join(' ');
@@ -116,41 +117,30 @@ const typeMeta: Record<
   AgendaPlannerEventType,
   {
     label: string;
-    dot: string;
     icon: React.ReactNode;
     defaultColor: string;
   }
 > = {
   consulta: {
-    label: 'Consulta',
-    dot: 'bg-indigo-500',
+    label: AGENDA_TYPE_COLORS.consulta.label,
     icon: <Briefcase size={11} />,
-    defaultColor: '#6366f1',
+    defaultColor: AGENDA_TYPE_COLORS.consulta.base,
   },
   pessoal: {
-    label: 'Pessoal',
-    dot: 'bg-amber-500',
+    label: AGENDA_TYPE_COLORS.pessoal.label,
     icon: <CalendarDays size={11} />,
-    defaultColor: '#f59e0b',
+    defaultColor: AGENDA_TYPE_COLORS.pessoal.base,
   },
   bloqueio: {
-    label: 'Bloqueio',
-    dot: 'bg-slate-500',
+    label: AGENDA_TYPE_COLORS.bloqueio.label,
     icon: <Ban size={11} />,
-    defaultColor: '#64748b',
+    defaultColor: AGENDA_TYPE_COLORS.bloqueio.base,
   },
 };
 
-const statusMeta: Record<AgendaPlannerEventStatus, { label: string; dot: string }> = {
-  scheduled:         { label: 'Agendado',         dot: 'bg-slate-400' },
-  confirmed:         { label: 'Confirmado',        dot: 'bg-emerald-500' },
-  completed:         { label: 'Realizado',         dot: 'bg-indigo-500' },
-  cancelled:         { label: 'Cancelado',         dot: 'bg-rose-500' },
-  'no-show':         { label: 'Faltou',            dot: 'bg-amber-500' },
-  no_show:           { label: 'Faltou',            dot: 'bg-amber-500' },
-  rescheduled:       { label: 'Reagendado',        dot: 'bg-violet-500' },
-  falta_justificada: { label: 'Falta Justificada', dot: 'bg-orange-400' },
-};
+const statusMeta: Record<AgendaPlannerEventStatus, { label: string; color: string }> = Object.fromEntries(
+  Object.entries(AGENDA_STATUS_COLORS).map(([key, value]) => [key, { label: value.label, color: value.base }])
+) as Record<AgendaPlannerEventStatus, { label: string; color: string }>;
 
 const startOfDay = (date: Date) =>
   new Date(date.getFullYear(), date.getMonth(), date.getDate());
@@ -192,24 +182,6 @@ const normalizeEvent = (event: AgendaPlannerEvent): NormalizedEvent => ({
 
 const eventsOverlap = (a: NormalizedEvent, b: NormalizedEvent) =>
   a.startDate < b.endDate && b.startDate < a.endDate;
-
-const hexToRgba = (hex: string, alpha: number) => {
-  const clean = hex.replace('#', '');
-  const normalized =
-    clean.length === 3
-      ? clean
-          .split('')
-          .map((char) => char + char)
-          .join('')
-      : clean;
-
-  const bigint = parseInt(normalized, 16);
-  const r = (bigint >> 16) & 255;
-  const g = (bigint >> 8) & 255;
-  const b = bigint & 255;
-
-  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
-};
 
 const minutesToTop = (
   totalMinutes: number,
@@ -325,7 +297,7 @@ const layoutDayEvents = (
         positioned.push({
           ...event,
           top,
-          height: Math.max(rawHeight, 28),
+          height: Math.max(rawHeight, 32),
           col: colIndex,
           colCount,
         });
@@ -657,7 +629,7 @@ export const AgendaPlanner: React.FC<AgendaPlannerProps> = ({
           showTasksPanel ? 'grid-cols-1 xl:grid-cols-[minmax(0,1fr)_330px]' : 'grid-cols-1'
         )}
       >
-        <div className="rounded-xl sm:rounded-[24px] border border-slate-200 bg-white shadow-sm" style={{ isolation: 'isolate' }}>
+        <div className="relative z-0 rounded-xl sm:rounded-[24px] border border-slate-200 bg-white shadow-sm">
           {/* Cabeçalho dos dias — sticky fora do scroll horizontal */}
           <div
             className="sticky z-20 flex border-b border-slate-100 bg-white/95 backdrop-blur-sm"
@@ -698,12 +670,12 @@ export const AgendaPlanner: React.FC<AgendaPlannerProps> = ({
                         {day.toLocaleDateString(locale, { weekday: 'short' }).replace('.', '')}
                       </span>
                       {isToday ? (
-                        <span className="flex h-7 w-7 items-center justify-center rounded-full bg-indigo-600 text-[13px] font-black text-white shadow-md shadow-indigo-300/60">
+                        <span className="flex h-8 w-8 items-center justify-center rounded-full bg-indigo-600 text-[14px] font-black text-white shadow-md shadow-indigo-300/60">
                           {day.getDate()}
                         </span>
                       ) : (
                         <span className={cx(
-                          'flex h-7 w-7 items-center justify-center rounded-full text-[13px] font-bold',
+                          'flex h-8 w-8 items-center justify-center rounded-full text-[13px] font-bold',
                           closedEntry
                             ? 'text-rose-500 bg-rose-100'
                             : isWeekend ? 'text-slate-400' : 'text-slate-700'
@@ -778,11 +750,11 @@ export const AgendaPlanner: React.FC<AgendaPlannerProps> = ({
                         ) : (
                           <div
                             key={hour}
-                            className="relative w-full border-b border-slate-200/60"
+                            className="relative w-full border-b border-slate-200"
                             style={{ height: hourHeight }}
                           >
                             {/* Linha sutil de meia hora */}
-                            <div className="absolute left-0 right-0 top-1/2 border-b border-dotted border-slate-100/50" />
+                            <div className="absolute left-0 right-0 top-1/2 border-b border-dashed border-slate-100" />
                           </div>
                         );
                       })}
@@ -836,9 +808,12 @@ export const AgendaPlanner: React.FC<AgendaPlannerProps> = ({
                         key={day.toISOString()}
                         className={cx(
                           'relative min-w-[80px] flex-1 border-r border-slate-200 transition cursor-crosshair',
-                          isWeekend && !isSameDay(day, new Date()) ? 'bg-slate-100' : 'bg-transparent'
+                          isSameDay(day, new Date())
+                            ? 'bg-indigo-50/60'
+                            : isWeekend
+                            ? 'bg-slate-50/70'
+                            : 'bg-transparent'
                         )}
-                        style={isSameDay(day, new Date()) ? { backgroundColor: 'color-mix(in srgb, var(--c-100) 35%, transparent)' } : undefined}
                         onMouseMove={(e) => {
                           const rect = e.currentTarget.getBoundingClientRect();
                           const rawY = Math.max(0, Math.min(e.clientY - rect.top, rect.height));
@@ -890,43 +865,53 @@ export const AgendaPlanner: React.FC<AgendaPlannerProps> = ({
                                 left: 3,
                                 right: 3,
                                 height: hourHeight - 4,
-                                border: '2px dashed var(--c-400)',
-                                background: 'var(--c-50)',
+                                border: `2px dashed ${hexToRgba(AGENDA_TYPE_COLORS.consulta.base, 0.45)}`,
+                                background: hexToRgba(AGENDA_TYPE_COLORS.consulta.base, 0.08),
                               }}
                             >
                               <div
                                 className="w-7 h-7 rounded-full flex items-center justify-center shadow-md"
-                                style={{ background: 'var(--c-500)' }}
+                                style={{ background: AGENDA_TYPE_COLORS.consulta.base }}
                               >
                                 <Plus size={14} className="text-white" strokeWidth={3} />
                               </div>
                             </div>
 
-                            {/* Tooltip dark flutuando acima do slot */}
-                            <div
-                              className="pointer-events-none absolute left-1/2 z-30"
-                              style={{
-                                top: hoveredSlot.top - 46,
-                                transform: 'translateX(-50%)',
-                              }}
-                            >
-                              <div className="relative flex items-center gap-2 bg-zinc-900 text-white text-[11px] font-black rounded-xl px-3 py-2 shadow-2xl whitespace-nowrap">
+                            {/* Tooltip dark flutuando acima (ou abaixo, se não houver espaço) do slot */}
+                            {(() => {
+                              const tooltipAbove = hoveredSlot.top >= 46;
+                              return (
                                 <div
-                                  className="w-5 h-5 shrink-0 rounded-full flex items-center justify-center"
-                                  style={{ background: 'var(--c-500)' }}
+                                  className="pointer-events-none absolute left-1/2 z-30"
+                                  style={{
+                                    top: tooltipAbove ? hoveredSlot.top - 46 : hoveredSlot.top + hourHeight + 6,
+                                    transform: 'translateX(-50%)',
+                                  }}
                                 >
-                                  <Plus size={10} className="text-white" strokeWidth={3} />
+                                  <div className="relative flex items-center gap-2 bg-zinc-900 text-white text-[11px] font-black rounded-xl px-3 py-2 shadow-2xl whitespace-nowrap">
+                                    <div
+                                      className="w-5 h-5 shrink-0 rounded-full flex items-center justify-center"
+                                      style={{ background: AGENDA_TYPE_COLORS.consulta.base }}
+                                    >
+                                      <Plus size={10} className="text-white" strokeWidth={3} />
+                                    </div>
+                                    {(() => {
+                                      const parts = hoveredSlot.label.split(' · ');
+                                      const datePart = parts[0]?.replace(',', '').trim() ?? '';
+                                      const timePart = parts[1]?.slice(0, 5) ?? '';
+                                      return `${datePart} • ${timePart}`;
+                                    })()}
+                                    {/* seta apontando para o slot */}
+                                    <div
+                                      className={cx(
+                                        'absolute left-1/2 -translate-x-1/2 w-2.5 h-2.5 bg-zinc-900 rotate-45',
+                                        tooltipAbove ? '-bottom-[5px]' : '-top-[5px]'
+                                      )}
+                                    />
+                                  </div>
                                 </div>
-                                {(() => {
-                                  const parts = hoveredSlot.label.split(' · ');
-                                  const datePart = parts[0]?.replace(',', '').trim() ?? '';
-                                  const timePart = parts[1]?.slice(0, 5) ?? '';
-                                  return `${datePart} • ${timePart}`;
-                                })()}
-                                {/* seta para baixo */}
-                                <div className="absolute -bottom-[5px] left-1/2 -translate-x-1/2 w-2.5 h-2.5 bg-zinc-900 rotate-45" />
-                              </div>
-                            </div>
+                              );
+                            })()}
                           </>
                         )}
 
@@ -939,8 +924,11 @@ export const AgendaPlanner: React.FC<AgendaPlannerProps> = ({
                               style={{ top: currentTimeTop }}
                             >
                               <div className="relative flex items-center">
-                                <div className="ml-1.5 h-2.5 w-2.5 rounded-full bg-rose-500 shadow-lg shadow-rose-200" />
-                                <div className="ml-1.5 h-[2px] flex-1 bg-rose-400/80" />
+                                <span className="absolute right-full mr-1.5 -translate-y-1/2 rounded-md bg-rose-600 px-1.5 py-0.5 text-[9px] font-black tabular-nums text-white shadow-sm whitespace-nowrap">
+                                  {today.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                </span>
+                                <div className="h-2.5 w-2.5 rounded-full bg-rose-600 shadow-lg shadow-rose-300" />
+                                <div className="ml-0 h-[2.5px] flex-1 bg-rose-500/80" />
                               </div>
                             </div>
                           )}
@@ -952,15 +940,15 @@ export const AgendaPlanner: React.FC<AgendaPlannerProps> = ({
                           // Status-based color só se aplica a consultas.
                           // Bloqueio = sempre cinza. Pessoal = sempre âmbar.
                           const statusAccent = event.type === 'consulta'
-                            ? (event.status === 'confirmed') ? '#10b981' :
-                              (event.status === 'completed') ? '#059669' :
-                              (event.status === 'cancelled' || event.status === 'no-show') ? '#ef4444' :
+                            ? (event.status === 'confirmed') ? AGENDA_STATUS_COLORS.confirmed.base :
+                              (event.status === 'completed') ? AGENDA_STATUS_COLORS.completed.base :
+                              (event.status === 'cancelled' || event.status === 'no-show') ? AGENDA_STATUS_COLORS.cancelled.base :
                               null
                             : null;
 
                           // Online consultas get a teal accent; presencial keep indigo default
                           const modalityDefaultColor = event.type === 'consulta' && event.modality === 'online'
-                            ? '#0891b2'  // cyan-600 — online
+                            ? AGENDA_MODALITY_COLORS.online
                             : meta.defaultColor; // indigo — presencial / default
 
                           const accent =
@@ -1006,7 +994,7 @@ export const AgendaPlanner: React.FC<AgendaPlannerProps> = ({
                                   background:
                                     event.type === 'bloqueio'
                                       ? 'linear-gradient(180deg, #f1f5f9 0%, #e2e8f0 100%)'
-                                      : hexToRgba(accent, 0.10),
+                                      : `linear-gradient(135deg, ${hexToRgba(accent, 0.14)}, ${hexToRgba(accent, 0.06)})`,
                                   borderColor:
                                     event.type === 'bloqueio'
                                       ? '#cbd5e1'
@@ -1023,15 +1011,15 @@ export const AgendaPlanner: React.FC<AgendaPlannerProps> = ({
                                 }}
                               >
                                 <div
-                                  className="absolute bottom-0 left-0 top-0 w-1"
+                                  className="absolute bottom-0 left-0 top-0 w-1.5"
                                   style={{ backgroundColor: accent }}
                                 />
 
-                                <div className="flex h-full flex-col px-1.5 py-0.5 pl-2.5">
+                                <div className="flex h-full flex-col px-2 py-1 pl-3">
                                   {/* Row 1: Time + Session + Status dot */}
                                   <div className="flex items-center justify-between gap-1 leading-none">
                                     <div className="flex items-center gap-1 min-w-0">
-                                      <span className="text-[9px] font-black tabular-nums text-slate-500/80">
+                                      <span className="text-[10px] font-black tabular-nums text-slate-600">
                                         {event.startDate.toLocaleTimeString([], {
                                           hour: '2-digit',
                                           minute: '2-digit',
@@ -1044,53 +1032,66 @@ export const AgendaPlanner: React.FC<AgendaPlannerProps> = ({
                                       )}
                                     </div>
                                     <div className="flex shrink-0 items-center gap-1">
-                                      <div className="flex items-center gap-0.5 leading-none">
-                                        {event.modality === 'online' ? (
-                                          <>
-                                            <Video size={8} style={{ color: '#0891b2' }} />
-                                            <span className="text-[7px] font-black text-cyan-600 uppercase">On</span>
-                                          </>
-                                        ) : event.modality === 'presencial' ? (
-                                          <>
-                                            <MapPin size={8} className="text-slate-400" />
-                                            <span className="text-[7px] font-black text-slate-400 uppercase">Pre</span>
-                                          </>
-                                        ) : null}
-                                      </div>
-                                      <div className={cx('h-1.5 w-1.5 rounded-full shrink-0', status.dot)} />
+                                      {event.modality === 'online' ? (
+                                        <span className="flex items-center gap-0.5 leading-none">
+                                          <Video size={9} style={{ color: AGENDA_MODALITY_COLORS.online }} />
+                                          {event.height > 50 && (
+                                            <span className="text-[7px] font-black uppercase" style={{ color: AGENDA_MODALITY_COLORS.online }}>Online</span>
+                                          )}
+                                        </span>
+                                      ) : event.modality === 'presencial' ? (
+                                        <span className="flex items-center gap-0.5 leading-none">
+                                          <MapPin size={9} className="text-slate-400" />
+                                          {event.height > 50 && (
+                                            <span className="text-[7px] font-black text-slate-400 uppercase">Presencial</span>
+                                          )}
+                                        </span>
+                                      ) : null}
+                                      <div className="h-1.5 w-1.5 rounded-full shrink-0" style={{ backgroundColor: status.color }} />
                                     </div>
                                   </div>
 
                                   {/* Row 2: Patient Name */}
-                                  <p className="truncate text-[10px] font-black leading-tight text-slate-900 tracking-tight">
+                                  <p className="truncate text-[11px] sm:text-[12px] font-black leading-tight text-slate-900 tracking-tight">
                                     {event.title}
                                   </p>
 
                                   {/* Row 3: Service */}
                                   {event.serviceName && (
-                                    <p className="truncate text-[8px] font-semibold text-slate-500/80 leading-none">
+                                    <p className="truncate text-[9px] font-semibold text-slate-500 leading-none mt-0.5">
                                       {event.serviceName}
                                     </p>
                                   )}
 
                                   {event.height > 50 && event.description && (
-                                    <p className="line-clamp-1 text-[7px] leading-relaxed text-slate-400 font-medium">
+                                    <p className="line-clamp-1 text-[8px] leading-relaxed text-slate-400 font-medium">
                                       {event.description}
                                     </p>
                                   )}
 
-                                  {/* Footer: Status label + icon */}
+                                  {/* Footer: Status chip + icon */}
                                   {event.height > 40 && (
-                                    <div className="mt-auto flex items-center justify-between gap-1 pt-px">
-                                      <div className="flex items-center gap-1">
-                                        <span className={cx('h-1 w-1 rounded-full', status.dot)} />
-                                        <span className="text-[7px] font-bold text-slate-400 uppercase tracking-wide">{status.label}</span>
-                                      </div>
+                                    <div className="mt-auto flex items-center justify-between gap-1 pt-0.5">
+                                      <span
+                                        className="inline-flex items-center rounded-full px-1.5 py-px text-[7px] font-black uppercase tracking-wide"
+                                        style={{ backgroundColor: hexToRgba(status.color, 0.15), color: status.color }}
+                                      >
+                                        {status.label}
+                                      </span>
                                       <div className="flex items-center gap-1">
                                         {event.comandaId && (
-                                          <span className="text-[7px] font-black bg-emerald-50/60 px-1 py-px rounded text-emerald-500 border border-emerald-100/30">$</span>
+                                          <span
+                                            className="text-[7px] font-black px-1 py-px rounded border"
+                                            style={{
+                                              backgroundColor: hexToRgba(AGENDA_STATUS_COLORS.confirmed.base, 0.12),
+                                              color: AGENDA_STATUS_COLORS.confirmed.base,
+                                              borderColor: hexToRgba(AGENDA_STATUS_COLORS.confirmed.base, 0.3),
+                                            }}
+                                          >
+                                            $
+                                          </span>
                                         )}
-                                        <span className="inline-flex items-center text-[8px] text-slate-400/50">
+                                        <span className="inline-flex items-center text-[8px] text-slate-400/60">
                                           {meta.icon}
                                         </span>
                                       </div>
@@ -1238,13 +1239,13 @@ export const AgendaPlanner: React.FC<AgendaPlannerProps> = ({
         const isOnline = ev.modality === 'online';
         const isPresencial = ev.modality === 'presencial';
         const tooltipAccent =
-          ev.type === 'bloqueio' ? '#94a3b8'
-          : ev.type === 'pessoal' ? '#f59e0b'
-          : evStatus === 'confirmed' ? '#10b981'
-          : evStatus === 'completed' ? '#6366f1'
-          : evStatus === 'cancelled' ? '#ef4444'
-          : evStatus === 'no-show' || evStatus === 'no_show' ? '#f59e0b'
-          : ev.color || '#6366f1';
+          ev.type === 'bloqueio' ? AGENDA_TYPE_COLORS.bloqueio.base
+          : ev.type === 'pessoal' ? AGENDA_TYPE_COLORS.pessoal.base
+          : evStatus === 'confirmed' ? AGENDA_STATUS_COLORS.confirmed.base
+          : evStatus === 'completed' ? AGENDA_STATUS_COLORS.completed.base
+          : evStatus === 'cancelled' ? AGENDA_STATUS_COLORS.cancelled.base
+          : (evStatus === 'no-show' || evStatus === 'no_show') ? AGENDA_STATUS_COLORS['no-show'].base
+          : ev.color || AGENDA_TYPE_COLORS.consulta.base;
         const durationMin = Math.max(1, Math.round((ev.endDate.getTime() - ev.startDate.getTime()) / 60000));
         const TOOLTIP_W = 240;
         const TOOLTIP_H = 140;
@@ -1326,7 +1327,7 @@ export const AgendaPlanner: React.FC<AgendaPlannerProps> = ({
 
               {/* Footer */}
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, paddingTop: 6, borderTop: '1px solid rgba(255,255,255,0.1)', marginTop: 2 }}>
-                <div className={cx('w-1.5 h-1.5 rounded-full shrink-0', tooltipStatusMeta.dot)} />
+                <div className="w-1.5 h-1.5 rounded-full shrink-0" style={{ backgroundColor: tooltipStatusMeta.color }} />
                 <span style={{ fontSize: 9, color: 'rgba(203,213,225,1)', fontWeight: 700 }}>{tooltipStatusMeta.label}</span>
                 {(isOnline || isPresencial) && (
                   <span style={{

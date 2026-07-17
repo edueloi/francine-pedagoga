@@ -68,7 +68,7 @@ app.use("/api/public/anamnese", publicAnamneseRouter);
 // Serve uploaded files (clinic logo, patient documents, etc.) statically.
 app.use("/uploads", express.static(path.join(process.cwd(), "uploads")));
 
-const PORT = 3000;
+const PORT = Number(process.env.PORT) || 3000;
 
 // Initialize Gemini Client
 const apiKey = process.env.GEMINI_API_KEY;
