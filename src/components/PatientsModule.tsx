@@ -408,24 +408,24 @@ export default function PatientsModule({
   return (
     <div id="patients-module" className="space-y-6">
       {/* Header and top tab selectors */}
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border-b border-gray-100 pb-4">
+      <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4 border-b border-gray-100 pb-4">
         <div>
-          <h2 className="font-display font-black text-2xl text-slate-900 flex items-center gap-2">
+          <h2 className="font-display font-black text-xl sm:text-2xl text-slate-900 flex items-center gap-2">
             <span className="p-1 rounded-xl bg-blue-50 text-[#1070ca] text-lg">📁</span> Prontuários de Pacientes
           </h2>
           <p className="text-xs text-gray-500">Módulo completo de admissão, acompanhamento psicopedagógico e linha do tempo.</p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2 w-full lg:w-auto">
           <button
             onClick={() => setActiveTab("list")}
-            className={`px-4 py-2 text-xs font-bold rounded-lg border cursor-pointer transition-all duration-150 ${activeTab === "list" ? "bg-[#1070ca] text-white border-[#1070ca]" : "bg-white text-slate-600 border-slate-200 hover:bg-slate-50"}`}
+            className={`px-3 sm:px-4 py-2 text-xs font-bold rounded-lg border cursor-pointer transition-all duration-150 whitespace-nowrap ${activeTab === "list" ? "bg-[#1070ca] text-white border-[#1070ca]" : "bg-white text-slate-600 border-slate-200 hover:bg-slate-50"}`}
           >
             📋 Lista de Prontuários
           </button>
           {selectedPat && (
             <button
               onClick={() => setActiveTab("detail")}
-              className={`px-4 py-2 text-xs font-bold rounded-lg border cursor-pointer transition-all duration-150 ${activeTab === "detail" ? "bg-[#1070ca] text-white border-[#1070ca]" : "bg-white text-slate-600 border-slate-200 hover:bg-slate-50"}`}
+              className={`px-3 sm:px-4 py-2 text-xs font-bold rounded-lg border cursor-pointer transition-all duration-150 whitespace-nowrap max-w-[45vw] sm:max-w-none truncate ${activeTab === "detail" ? "bg-[#1070ca] text-white border-[#1070ca]" : "bg-white text-slate-600 border-slate-200 hover:bg-slate-50"}`}
             >
               🔎 Ver: {selectedPat.nome.split(" ")[0]}
             </button>
@@ -433,7 +433,7 @@ export default function PatientsModule({
           {canCreate && (
             <button
               onClick={openCreateWizard}
-              className="px-4 py-2 text-xs font-bold rounded-lg border cursor-pointer flex items-center gap-1.5 transition-all duration-150 bg-pink-50 text-[#d43f72] border-pink-100 hover:bg-pink-100/50"
+              className="px-3 sm:px-4 py-2 text-xs font-bold rounded-lg border cursor-pointer flex items-center gap-1.5 transition-all duration-150 bg-pink-50 text-[#d43f72] border-pink-100 hover:bg-pink-100/50 whitespace-nowrap"
             >
               <PlusCircle className="h-3.5 w-3.5" /> Admitir Novo
             </button>
