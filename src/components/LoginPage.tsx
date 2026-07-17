@@ -103,7 +103,7 @@ export default function LoginPage({ onLoginSuccess, onBackToLanding }: LoginPage
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     className="block w-full pl-10 pr-3.5 py-3 bg-slate-50/60 border border-slate-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-[#1070ca]/20 focus:border-[#1070ca] focus:bg-white text-xs text-slate-700 font-semibold transition-all placeholder-slate-400"
-                    placeholder="admin ou exemplo@aprenderaser.com"
+                    placeholder=""
                   />
                 </div>
               </div>
