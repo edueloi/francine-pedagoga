@@ -333,12 +333,12 @@ export default function AuditLogModule({
       </div>
 
       {/* Sub tabs selector */}
-      <div className="flex border-b border-slate-100 gap-1 select-none">
+      <div className="flex border-b border-slate-100 gap-1 select-none overflow-x-auto overflow-y-hidden -mx-4 px-4 sm:mx-0 sm:px-0 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
         <button
           onClick={() => { setActiveSubTab("users"); resetForm(); }}
-          className={`px-5 py-3 text-xs font-black uppercase tracking-wider transition border-b-2 flex items-center gap-2 cursor-pointer ${
-            activeSubTab === "users" 
-              ? "border-[#1070ca] text-[#1070ca]" 
+          className={`shrink-0 whitespace-nowrap px-5 py-3 text-xs font-black uppercase tracking-wider transition border-b-2 flex items-center gap-2 cursor-pointer ${
+            activeSubTab === "users"
+              ? "border-[#1070ca] text-[#1070ca]"
               : "border-transparent text-slate-400 hover:text-slate-700 hover:border-slate-200"
           }`}
         >
@@ -346,7 +346,7 @@ export default function AuditLogModule({
         </button>
         <button
           onClick={() => { setActiveSubTab("matrix"); resetForm(); }}
-          className={`px-5 py-3 text-xs font-black uppercase tracking-wider transition border-b-2 flex items-center gap-2 cursor-pointer ${
+          className={`shrink-0 whitespace-nowrap px-5 py-3 text-xs font-black uppercase tracking-wider transition border-b-2 flex items-center gap-2 cursor-pointer ${
             activeSubTab === "matrix" 
               ? "border-[#1070ca] text-[#1070ca]" 
               : "border-transparent text-slate-400 hover:text-slate-700 hover:border-slate-200"
@@ -356,7 +356,7 @@ export default function AuditLogModule({
         </button>
         <button
           onClick={() => { setActiveSubTab("logs"); resetForm(); }}
-          className={`px-5 py-3 text-xs font-black uppercase tracking-wider transition border-b-2 flex items-center gap-2 cursor-pointer ${
+          className={`shrink-0 whitespace-nowrap px-5 py-3 text-xs font-black uppercase tracking-wider transition border-b-2 flex items-center gap-2 cursor-pointer ${
             activeSubTab === "logs"
               ? "border-[#1070ca] text-[#1070ca]"
               : "border-transparent text-slate-400 hover:text-slate-700 hover:border-slate-200"
@@ -366,7 +366,7 @@ export default function AuditLogModule({
         </button>
         <button
           onClick={() => { setActiveSubTab("whatsapp"); resetForm(); }}
-          className={`px-5 py-3 text-xs font-black uppercase tracking-wider transition border-b-2 flex items-center gap-2 cursor-pointer ${
+          className={`shrink-0 whitespace-nowrap px-5 py-3 text-xs font-black uppercase tracking-wider transition border-b-2 flex items-center gap-2 cursor-pointer ${
             activeSubTab === "whatsapp"
               ? "border-[#1070ca] text-[#1070ca]"
               : "border-transparent text-slate-400 hover:text-slate-700 hover:border-slate-200"
@@ -376,7 +376,7 @@ export default function AuditLogModule({
         </button>
         <button
           onClick={() => { setActiveSubTab("email"); resetForm(); }}
-          className={`px-5 py-3 text-xs font-black uppercase tracking-wider transition border-b-2 flex items-center gap-2 cursor-pointer ${
+          className={`shrink-0 whitespace-nowrap px-5 py-3 text-xs font-black uppercase tracking-wider transition border-b-2 flex items-center gap-2 cursor-pointer ${
             activeSubTab === "email"
               ? "border-[#1070ca] text-[#1070ca]"
               : "border-transparent text-slate-400 hover:text-slate-700 hover:border-slate-200"
@@ -392,7 +392,7 @@ export default function AuditLogModule({
           {/* Main user list table */}
           <div className={`${showAddForm ? "lg:col-span-6" : "lg:col-span-12"} space-y-4 transition-all duration-300`}>
             <div className="bg-white rounded-3xl border border-slate-100 shadow-sm p-6 space-y-6">
-              <div className="flex justify-between items-center pb-2 border-b border-slate-50">
+              <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3 pb-2 border-b border-slate-50">
                 <div>
                   <h3 className="font-display font-black text-slate-800 text-sm uppercase tracking-wider flex items-center gap-1.5">
                     Usuários com Acesso
@@ -400,10 +400,10 @@ export default function AuditLogModule({
                   <p className="text-[11px] text-slate-400">Total de {visibleUsers.length} acessos configurados no sistema.</p>
                 </div>
                 {!showAddForm && (
-                  <div className="flex items-center gap-2">
+                  <div className="flex flex-wrap items-center gap-2">
                     <button
                       onClick={() => setShowInviteModal(true)}
-                      className="px-4 py-2 bg-white border border-slate-200 hover:border-blue-200 text-slate-600 hover:text-[#1070ca] rounded-xl text-xs font-black uppercase tracking-wider transition flex items-center gap-2 cursor-pointer"
+                      className="shrink-0 whitespace-nowrap px-4 py-2 bg-white border border-slate-200 hover:border-blue-200 text-slate-600 hover:text-[#1070ca] rounded-xl text-xs font-black uppercase tracking-wider transition flex items-center gap-2 cursor-pointer"
                     >
                       <Mail className="h-4 w-4" /> Convidar por E-mail
                     </button>
@@ -413,7 +413,7 @@ export default function AuditLogModule({
                         setCustomPerms({ ...rolePermissions[UserRole.PROFESSIONAL] });
                         setShowAddForm(true);
                       }}
-                      className="px-4 py-2 bg-[#1070ca] hover:bg-[#0b5194] text-white rounded-xl text-xs font-black uppercase tracking-wider transition flex items-center gap-2 cursor-pointer shadow-xs"
+                      className="shrink-0 whitespace-nowrap px-4 py-2 bg-[#1070ca] hover:bg-[#0b5194] text-white rounded-xl text-xs font-black uppercase tracking-wider transition flex items-center gap-2 cursor-pointer shadow-xs"
                     >
                       <UserPlus className="h-4 w-4" /> Novo Usuário
                     </button>

@@ -194,6 +194,29 @@ async function migrate() {
 
   await addColumnIfMissing(conn, "insurances", "alert_sent", "BOOLEAN DEFAULT FALSE");
 
+  // ---- INSURANCE PROVIDERS: cadastro de operadoras de saúde (gerenciável pela UI) ----
+  // Antes era uma lista fixa hardcoded no frontend (Unimed/SulAmérica/Bradesco/Amil);
+  // agora vira um cadastro de verdade que alimenta o dropdown de "Operadora de Saúde"
+  // ao registrar uma guia.
+  await conn.query(`
+    CREATE TABLE IF NOT EXISTS insurance_providers (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      nome VARCHAR(255) NOT NULL,
+      contato VARCHAR(255) NULL COMMENT 'telefone ou e-mail de contato da operadora',
+      observacoes TEXT NULL,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+  `);
+
+  // Seed com as 4 operadoras que já existiam fixas no código, só se a tabela estiver vazia.
+  const [existingProviders] = await conn.query(`SELECT COUNT(*) AS count FROM insurance_providers`);
+  if (existingProviders[0].count === 0) {
+    const DEFAULT_PROVIDERS = ["Unimed Paulista", "SulAmérica Saúde", "Bradesco Saúde", "Amil Assistência"];
+    for (const nome of DEFAULT_PROVIDERS) {
+      await conn.query(`INSERT INTO insurance_providers (nome) VALUES (?)`, [nome]);
+    }
+  }
+
   // ---- INSURANCE DOCUMENTS ----
   await conn.query(`
     CREATE TABLE IF NOT EXISTS insurance_documents (
