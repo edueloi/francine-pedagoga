@@ -3,6 +3,7 @@ import {
   PatientStatus,
   Session,
   Insurance,
+  InsuranceProvider,
   SystemUser,
   AgendaEvent,
   AgendaItem,
@@ -113,6 +114,23 @@ export function sessionToApi(session: Partial<Session>): Record<string, any> {
     observacoes_clinicas: session.observacoesClinicas ?? null,
     raw_notes: session.rawNotes ?? null,
     plano_proxima_sessao: session.planoProximaSessao ?? null,
+  };
+}
+
+export function insuranceProviderFromApi(row: any): InsuranceProvider {
+  return {
+    id: String(row.id),
+    nome: row.nome,
+    contato: row.contato ?? undefined,
+    observacoes: row.observacoes ?? undefined,
+  };
+}
+
+export function insuranceProviderToApi(provider: Partial<InsuranceProvider>): Record<string, any> {
+  return {
+    nome: provider.nome,
+    contato: provider.contato ?? null,
+    observacoes: provider.observacoes ?? null,
   };
 }
 

@@ -141,6 +141,13 @@ export interface Insurance {
   relatoriosObrigatorios?: string[];
 }
 
+export interface InsuranceProvider {
+  id: string;
+  nome: string;
+  contato?: string;
+  observacoes?: string;
+}
+
 export interface TimelineItem {
   id: string;
   patientId: string;
