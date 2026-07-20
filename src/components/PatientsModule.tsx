@@ -6,6 +6,7 @@ import { patientFromApi, patientToApi } from "../lib/apiMappers";
 import { WizardModal, DocFile } from "./Patient/PatientFormWizard";
 import { useAnamneses } from "../hooks/useAnamneses";
 import { useTimeline } from "../hooks/useTimeline";
+import { useInsuranceProviders } from "../hooks/useInsuranceProviders";
 import { useToast, ConfirmModal } from "./UI";
 
 interface PatientsModuleProps {
@@ -35,6 +36,7 @@ export default function PatientsModule({
   );
   const { anamneses, saveAnamnese } = useAnamneses();
   const { timeline, addTimelineItem } = useTimeline(selectedPat?.id);
+  const { providers: insuranceProviders } = useInsuranceProviders();
   const [detailTab, setDetailTab] = useState<"cadastro" | "anamnese" | "documentos" | "timeline">("cadastro");
 
   // Search and Filter States
@@ -50,6 +52,7 @@ export default function PatientsModule({
   // Detailed Anamnese Editor state
   const [editingAnamnese, setEditingAnamnese] = useState<Anamnese | null>(null);
   const [sendingShareLink, setSendingShareLink] = useState(false);
+  const [sendingAdmissionLink, setSendingAdmissionLink] = useState(false);
 
   // Document Upload Simulator
   const [simulatedDocName, setSimulatedDocName] = useState("");
@@ -367,6 +370,26 @@ export default function PatientsModule({
     }
   };
 
+  // Gera um link avulso de pré-admissão (sem paciente ainda) e copia para a área de
+  // transferência. Diferente do link de anamnese acima, este cria um paciente novo
+  // quando a família preenche — válido por 7 dias, uso único.
+  const handleGenerateAdmissionLink = async () => {
+    setSendingAdmissionLink(true);
+    try {
+      const res = await authFetch("/api/admission-invites", { method: "POST" });
+      if (!res.ok) throw new Error("Falha ao gerar link de pré-admissão");
+      const { url } = await res.json();
+      const fullUrl = `${window.location.origin}${url}`;
+      await navigator.clipboard.writeText(fullUrl);
+      toast.success("Link copiado! Válido por 7 dias e uso único — envie para a família preencher o pré-cadastro.");
+    } catch (err) {
+      console.error(err);
+      toast.error("Não foi possível gerar o link de pré-admissão. Tente novamente.");
+    } finally {
+      setSendingAdmissionLink(false);
+    }
+  };
+
   const handleAddTimelineItem = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedPat || !timelineTitle.trim()) return;
@@ -432,6 +455,16 @@ export default function PatientsModule({
           )}
           {canCreate && (
             <button
+              onClick={handleGenerateAdmissionLink}
+              disabled={sendingAdmissionLink}
+              className="px-3 sm:px-4 py-2 text-xs font-bold rounded-lg border cursor-pointer flex items-center gap-1.5 transition-all duration-150 bg-white text-slate-600 border-slate-200 hover:bg-slate-50 whitespace-nowrap disabled:opacity-60"
+              title="Gera um link para a família preencher o pré-cadastro (válido por 7 dias, uso único)"
+            >
+              <Share2 className="h-3.5 w-3.5" /> {sendingAdmissionLink ? "Gerando..." : "Link de Pré-Cadastro"}
+            </button>
+          )}
+          {canCreate && (
+            <button
               onClick={openCreateWizard}
               className="px-3 sm:px-4 py-2 text-xs font-bold rounded-lg border cursor-pointer flex items-center gap-1.5 transition-all duration-150 bg-pink-50 text-[#d43f72] border-pink-100 hover:bg-pink-100/50 whitespace-nowrap"
             >
@@ -446,6 +479,7 @@ export default function PatientsModule({
         onClose={() => !wizardSaving && setWizardOpen(false)}
         initialData={wizardInitialData}
         onSave={handleWizardSave}
+        insuranceProviderNames={insuranceProviders.map((p) => p.nome)}
       />
 
       {/* Tab: Patients Directory List */}

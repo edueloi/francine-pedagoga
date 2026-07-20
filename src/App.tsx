@@ -5,6 +5,7 @@ import LoginPage from "./components/LoginPage";
 import SplashScreen from "./components/SplashScreen";
 import PublicFormPage from "./components/PublicFormPage";
 import PublicAnamnesePage from "./components/PublicAnamnesePage";
+import PreAdmissionPage from "./components/PreAdmissionPage";
 import ResetPasswordPage from "./components/ResetPasswordPage";
 import AcceptInvitePage from "./components/AcceptInvitePage";
 import Dashboard from "./components/Dashboard";
@@ -320,6 +321,16 @@ export default function App() {
     return (
       <Routes>
         <Route path="/anamnese/:token" element={<PublicAnamnesePage />} />
+      </Routes>
+    );
+  }
+
+  // Public, no-login pre-admission fill-out page (link sent by staff to a family with
+  // no patient record yet) — same treatment as the routes above.
+  if (location.pathname.startsWith("/pre-admissao/")) {
+    return (
+      <Routes>
+        <Route path="/pre-admissao/:token" element={<PreAdmissionPage />} />
       </Routes>
     );
   }

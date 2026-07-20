@@ -453,6 +453,25 @@ async function migrate() {
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
   `);
 
+  // ---- ADMISSION INVITES: link avulso de pré-admissão preenchido pela família ----
+  // Diferente do link de anamnese (patients.anamnese_share_token), que exige um paciente
+  // JÁ cadastrado — aqui o link é gerado sem paciente nenhum, e ao ser preenchido pela
+  // família CRIA um paciente novo (status "Pendente de revisão"), pronto para a equipe
+  // completar depois (diagnóstico, convênio, etc.).
+  await conn.query(`
+    CREATE TABLE IF NOT EXISTS admission_invites (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      token VARCHAR(255) NOT NULL UNIQUE,
+      created_by INT NULL,
+      expires_at DATETIME NOT NULL,
+      used_at TIMESTAMP NULL,
+      created_patient_id INT NULL,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      CONSTRAINT fk_admission_invites_created_by FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL,
+      CONSTRAINT fk_admission_invites_patient FOREIGN KEY (created_patient_id) REFERENCES patients(id) ON DELETE SET NULL
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+  `);
+
   // ---- WHATSAPP BOT: configurações de templates de mensagem (editáveis pela UI) ----
   await conn.query(`
     CREATE TABLE IF NOT EXISTS whatsapp_settings (

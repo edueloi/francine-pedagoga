@@ -27,6 +27,7 @@ import reportsRoutes from "./backend/routes/reports";
 import uploadsRoutes from "./backend/routes/uploads";
 import clinicSettingsRoutes, { publicClinicInfoRouter } from "./backend/routes/clinicSettings";
 import { publicAnamneseRouter } from "./backend/routes/anamneseShare";
+import admissionInviteRoutes, { publicAdmissionRouter } from "./backend/routes/admissionInvite";
 import * as whatsappService from "./backend/services/whatsappService";
 import { startReminderScheduler } from "./backend/services/reminderScheduler";
 
@@ -57,6 +58,7 @@ app.use("/api/email", emailRoutes);
 app.use("/api/reports", reportsRoutes);
 app.use("/api/uploads", uploadsRoutes);
 app.use("/api/clinic-settings", clinicSettingsRoutes);
+app.use("/api/admission-invites", admissionInviteRoutes);
 
 // Public, no-login share-link endpoints — intentionally mounted WITHOUT authMiddleware.
 // Only exposes the two routes defined in publicFormsRouter (GET form by token, POST a response).
@@ -70,6 +72,11 @@ app.use("/api/public/clinic-info", publicClinicInfoRouter);
 // authMiddleware. Only exposes the specific patient tied to the token in the URL
 // (see publicAnamneseRouter for details); never leaks other patients' data.
 app.use("/api/public/anamnese", publicAnamneseRouter);
+
+// Public, no-login pre-admission fill-out endpoint — intentionally mounted WITHOUT
+// authMiddleware. Unlike /api/public/anamnese, this one has no existing patient tied
+// to it; filling it in creates a brand-new patient record (see publicAdmissionRouter).
+app.use("/api/public/admission", publicAdmissionRouter);
 
 // Serve uploaded files (clinic logo, patient documents, etc.) statically.
 app.use("/uploads", express.static(path.join(process.cwd(), "uploads")));

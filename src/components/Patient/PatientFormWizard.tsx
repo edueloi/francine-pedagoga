@@ -60,6 +60,8 @@ interface PatientFormWizardProps {
   hideHeader?: boolean;
   /** Chamado quando o step muda — permite pai atualizar footer externo */
   onStepChange?: (ctx: WizardFooterContext) => void;
+  /** Nomes de operadoras já cadastradas — alimenta a sugestão do campo "Operadora do convênio" */
+  insuranceProviderNames?: string[];
 }
 
 const STEPS = [
@@ -82,6 +84,7 @@ export const PatientFormWizard: React.FC<PatientFormWizardProps> = ({
   renderFooter,
   hideHeader = false,
   onStepChange,
+  insuranceProviderNames = [],
 }) => {
   const [currentStep, setCurrentStep] = useState(0);
   const [selectedFiles, setSelectedFiles] = useState<DocFile[]>([]);
@@ -505,11 +508,20 @@ export const PatientFormWizard: React.FC<PatientFormWizardProps> = ({
                   <label className="text-xs font-bold text-slate-500 uppercase">Operadora do convênio</label>
                   <input
                     type="text"
+                    list="insurance-provider-options"
                     className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg bg-white outline-none focus:ring-2 focus:ring-[#1070ca]/20 focus:border-[#1070ca]"
                     value={formData.convenio || ''}
                     onChange={(e) => updateField('convenio', e.target.value)}
-                    placeholder="Ex: Bradesco Saúde"
+                    placeholder="Selecione ou digite uma operadora"
                   />
+                  <datalist id="insurance-provider-options">
+                    {insuranceProviderNames.map((name) => (
+                      <option key={name} value={name} />
+                    ))}
+                  </datalist>
+                  <p className="text-[10px] text-slate-400">
+                    Não encontrou a operadora? Digite o nome normalmente — você pode cadastrá-la depois em Guias & Convênios.
+                  </p>
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                   <div className="space-y-2">
@@ -724,9 +736,10 @@ interface WizardModalProps {
   onClose: () => void;
   initialData?: Partial<Patient>;
   onSave: (data: Partial<Patient>, files: DocFile[], photoFile?: File | null) => void;
+  insuranceProviderNames?: string[];
 }
 
-export const WizardModal: React.FC<WizardModalProps> = ({ isOpen, onClose, initialData, onSave }) => {
+export const WizardModal: React.FC<WizardModalProps> = ({ isOpen, onClose, initialData, onSave, insuranceProviderNames }) => {
   const [footerMeta, setFooterMeta] = React.useState({ currentStep: 0, isLastStep: false, hasId: false });
   const wizardFnsRef = React.useRef<Pick<WizardFooterContext, 'onNext' | 'onPrev' | 'onSaveNow' | 'onCancel'>>({
     onNext: () => {},
@@ -836,6 +849,7 @@ export const WizardModal: React.FC<WizardModalProps> = ({ isOpen, onClose, initi
           onSave={onSave}
           onCancel={onClose}
           hideHeader
+          insuranceProviderNames={insuranceProviderNames}
           onStepChange={(ctx) => {
             wizardFnsRef.current = { onNext: ctx.onNext, onPrev: ctx.onPrev, onSaveNow: ctx.onSaveNow, onCancel: ctx.onCancel };
             setFooterMeta({ currentStep: ctx.currentStep, isLastStep: ctx.isLastStep, hasId: ctx.hasId });
