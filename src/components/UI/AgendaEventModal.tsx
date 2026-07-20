@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Calendar, Clock, FileCheck2, Trash2, X, Link2, FileText, MessageCircle, Pencil } from 'lucide-react';
+import { Calendar, Clock, FileCheck2, Trash2, X, Link2, FileText, MessageCircle, Pencil, Repeat, CalendarClock } from 'lucide-react';
 import { Modal, ModalFooter } from './Modal';
 import { Button, IconButton } from './Button';
 import { Combobox } from './Combobox';
@@ -57,6 +57,7 @@ export interface AgendaEventModalProps {
   insurances: Insurance[];
   services: Service[];
   professionals: SystemUser[];
+  allEvents: AgendaEvent[];
   canEdit: boolean;
   canDelete: boolean;
   onSave: (id: string, payload: Partial<AgendaEvent>, scope?: AgendaEventScope) => Promise<void>;
@@ -74,6 +75,7 @@ export const AgendaEventModal: React.FC<AgendaEventModalProps> = ({
   insurances,
   services,
   professionals,
+  allEvents,
   canEdit,
   canDelete,
   onSave,
@@ -106,6 +108,20 @@ export const AgendaEventModal: React.FC<AgendaEventModalProps> = ({
   const linkedInsurance = useMemo(
     () => insurances.find((ins) => ins.id === event?.insuranceId),
     [insurances, event?.insuranceId]
+  );
+
+  // Other sessions sharing the same recurrence_group_id, so the user can see exactly
+  // what a "this and future" edit/delete would touch before confirming it.
+  const seriesSiblings = useMemo(() => {
+    if (!event?.recurrenceGroupId) return [];
+    return allEvents
+      .filter((ev) => ev.recurrenceGroupId === event.recurrenceGroupId && ev.id !== event.id)
+      .sort((a, b) => new Date(a.start).getTime() - new Date(b.start).getTime());
+  }, [allEvents, event]);
+
+  const futureSiblings = useMemo(
+    () => seriesSiblings.filter((ev) => new Date(ev.start) >= new Date() && ev.status !== 'realizado'),
+    [seriesSiblings]
   );
 
   useEffect(() => {
@@ -188,14 +204,51 @@ export const AgendaEventModal: React.FC<AgendaEventModalProps> = ({
   };
 
   const handleDelete = () => {
-    if (!window.confirm('Deseja realmente excluir este agendamento?')) return;
+    if (!isPartOfSeries && !window.confirm('Deseja realmente excluir este agendamento?')) return;
     runOrAskScope({ kind: 'delete' });
   };
+
+  const scopeModal = pendingAction && (
+    <Modal
+      isOpen
+      onClose={() => setPendingAction(null)}
+      title="Este agendamento faz parte de uma série"
+      subtitle={`${futureSiblings.length} outra${futureSiblings.length === 1 ? '' : 's'} sessão${futureSiblings.length === 1 ? '' : 'ões'} futura${futureSiblings.length === 1 ? '' : 's'} na série`}
+      size="sm"
+    >
+      <div className="space-y-4">
+        <p className="text-sm text-slate-600">
+          Deseja {pendingAction.kind === 'delete' ? 'excluir' : 'aplicar esta alteração a'} somente esta sessão, ou esta e as sessões futuras da série?
+        </p>
+
+        {futureSiblings.length > 0 && (
+          <div className="rounded-2xl border border-slate-200 bg-slate-50/60 max-h-40 overflow-y-auto divide-y divide-slate-100">
+            {futureSiblings.map((sibling) => (
+              <div key={sibling.id} className="flex items-center gap-2 px-3 py-2 text-xs">
+                <CalendarClock size={13} className="text-slate-400 shrink-0" />
+                <span className="font-bold text-slate-700">{formatDateLabel(sibling.start)}</span>
+                <span className="text-slate-400">{formatTimeLabel(sibling.start)}</span>
+              </div>
+            ))}
+          </div>
+        )}
+
+        <div className="space-y-2">
+          <Button variant="outline" className="w-full" onClick={() => runAction(pendingAction, 'only')} disabled={saving}>
+            Apenas esta sessão
+          </Button>
+          <Button variant="primary" className="w-full" onClick={() => runAction(pendingAction, 'future')} loading={saving}>
+            Esta e as {futureSiblings.length} sessões futuras
+          </Button>
+        </div>
+      </div>
+    </Modal>
+  );
 
   if (isEditing) {
     return (
       <Modal isOpen={isOpen} onClose={() => setIsEditing(false)} title="Editar agendamento" size="lg">
-        <div className="space-y-4">
+        <div className="space-y-5">
           <DatePicker value={editDate} onChange={(v) => v && setEditDate(v)} label="Data" />
           <div className="grid grid-cols-2 gap-3">
             <Input type="time" label="Início" value={editStart} onChange={(e) => setEditStart(e.target.value)} />
@@ -262,34 +315,27 @@ export const AgendaEventModal: React.FC<AgendaEventModalProps> = ({
           <Button variant="primary" loading={saving} onClick={handleSaveEdit}>Salvar Alterações</Button>
         </ModalFooter>
 
-        {pendingAction && (
-          <Modal isOpen onClose={() => setPendingAction(null)} title="Este agendamento faz parte de uma série" size="xs">
-            <p className="text-sm text-slate-600 mb-4">Deseja aplicar esta alteração somente a esta sessão ou a esta e às sessões futuras da série?</p>
-            <div className="space-y-2">
-              <Button variant="outline" className="w-full" onClick={() => runAction(pendingAction, 'only')}>Apenas esta sessão</Button>
-              <Button variant="primary" className="w-full" onClick={() => runAction(pendingAction, 'future')}>Esta e as sessões futuras</Button>
-            </div>
-          </Modal>
-        )}
+        {scopeModal}
       </Modal>
     );
   }
 
   return (
     <Modal isOpen={isOpen} onClose={onClose} size="lg" hideCloseButton>
-      <div className="-m-6 mb-0 sm:-m-8 sm:mb-0 bg-gradient-to-br from-indigo-500 to-indigo-700 text-white p-6 sm:p-8 rounded-t-2xl relative">
-        <button onClick={onClose} className="absolute top-4 right-4 text-white/70 hover:text-white">
+      <div className="-m-6 mb-0 sm:-m-8 sm:mb-0 bg-gradient-to-br from-indigo-500 to-indigo-700 text-white px-6 pt-6 pb-5 sm:px-8 sm:pt-8 sm:pb-6 rounded-t-2xl relative">
+        <button onClick={onClose} className="absolute top-4 right-4 p-1.5 rounded-full text-white/70 hover:text-white hover:bg-white/10 transition">
           <X size={18} />
         </button>
         <div className="flex items-center gap-3">
           <div className="h-12 w-12 rounded-2xl bg-white/15 flex items-center justify-center font-black text-lg shrink-0">
             {(patient?.nome || event.title || '?').charAt(0).toUpperCase()}
           </div>
-          <div className="min-w-0">
+          <div className="min-w-0 pr-8">
             <p className="font-black text-lg truncate">{patient?.nome || event.title}</p>
-            <p className="text-white/70 text-xs font-semibold">{patient?.telefone}</p>
+            {patient?.telefone && <p className="text-white/70 text-xs font-semibold">{patient.telefone}</p>}
           </div>
         </div>
+
         <div className="flex flex-wrap gap-2 mt-4">
           <span className="inline-flex items-center gap-1.5 bg-white/15 rounded-full px-3 py-1 text-[11px] font-bold">
             <Calendar size={12} /> {formatDateLabel(event.start)}
@@ -300,14 +346,19 @@ export const AgendaEventModal: React.FC<AgendaEventModalProps> = ({
           <span className="inline-flex items-center gap-1.5 bg-white/15 rounded-full px-3 py-1 text-[11px] font-bold">
             <span className={`w-1.5 h-1.5 rounded-full ${statusMeta.dot}`} /> {statusMeta.label}
           </span>
+          {isPartOfSeries && (
+            <span className="inline-flex items-center gap-1.5 bg-white/15 rounded-full px-3 py-1 text-[11px] font-bold">
+              <Repeat size={12} /> Série
+            </span>
+          )}
         </div>
 
-        {patient && (
-          <div className="flex flex-wrap gap-2 mt-4">
+        {patient && (onNavigateToPatient || waHref) && (
+          <div className="flex flex-wrap gap-2 mt-3">
             {onNavigateToPatient && (
               <button
                 onClick={() => onNavigateToPatient(patient.id)}
-                className="inline-flex items-center gap-1.5 bg-white/15 hover:bg-white/25 rounded-full px-3 py-1.5 text-[11px] font-bold transition"
+                className="inline-flex items-center gap-1.5 bg-white/10 hover:bg-white/20 rounded-full px-3 py-1.5 text-[11px] font-bold transition"
               >
                 <FileText size={12} /> Ver prontuário
               </button>
@@ -317,7 +368,7 @@ export const AgendaEventModal: React.FC<AgendaEventModalProps> = ({
                 href={waHref}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="inline-flex items-center gap-1.5 bg-white/15 hover:bg-white/25 rounded-full px-3 py-1.5 text-[11px] font-bold transition"
+                className="inline-flex items-center gap-1.5 bg-white/10 hover:bg-white/20 rounded-full px-3 py-1.5 text-[11px] font-bold transition"
               >
                 <MessageCircle size={12} /> WhatsApp
               </a>
@@ -326,16 +377,16 @@ export const AgendaEventModal: React.FC<AgendaEventModalProps> = ({
         )}
       </div>
 
-      <div className="pt-5 space-y-5">
+      <div className="pt-6 space-y-6">
         <div>
-          <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Tipo de atendimento</p>
+          <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5">Tipo de atendimento</p>
           <p className="text-sm font-bold text-slate-700">{event.tipo}</p>
         </div>
 
         {event.alertas && (
           <div>
-            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Observações</p>
-            <p className="text-sm text-slate-600 whitespace-pre-wrap">{event.alertas}</p>
+            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5">Observações</p>
+            <p className="text-sm text-slate-600 whitespace-pre-wrap leading-relaxed">{event.alertas}</p>
           </div>
         )}
 
@@ -401,7 +452,7 @@ export const AgendaEventModal: React.FC<AgendaEventModalProps> = ({
         </div>
 
         <div>
-          <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Alterar status</p>
+          <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2.5">Alterar status</p>
           <div className="flex flex-wrap gap-2">
             {(Object.keys(STATUS_META) as AgendaEvent['status'][]).map((status) => (
               <button
@@ -421,7 +472,7 @@ export const AgendaEventModal: React.FC<AgendaEventModalProps> = ({
         </div>
       </div>
 
-      <ModalFooter align="between" className="mt-6">
+      <ModalFooter align="between" className="mt-7 pt-5 border-t border-slate-100">
         <div className="flex gap-2">
           {canDelete && (
             <IconButton variant="danger" onClick={handleDelete} disabled={saving} title="Excluir agendamento">
@@ -434,20 +485,10 @@ export const AgendaEventModal: React.FC<AgendaEventModalProps> = ({
             </IconButton>
           )}
         </div>
-        <div className="flex gap-2">
-          <Button variant="outline" onClick={onClose}>Fechar</Button>
-        </div>
+        <Button variant="outline" onClick={onClose}>Fechar</Button>
       </ModalFooter>
 
-      {pendingAction && (
-        <Modal isOpen onClose={() => setPendingAction(null)} title="Este agendamento faz parte de uma série" size="xs">
-          <p className="text-sm text-slate-600 mb-4">Deseja aplicar esta ação somente a esta sessão ou a esta e às sessões futuras da série?</p>
-          <div className="space-y-2">
-            <Button variant="outline" className="w-full" onClick={() => runAction(pendingAction, 'only')}>Apenas esta sessão</Button>
-            <Button variant="primary" className="w-full" onClick={() => runAction(pendingAction, 'future')}>Esta e as sessões futuras</Button>
-          </div>
-        </Modal>
-      )}
+      {scopeModal}
     </Modal>
   );
 };

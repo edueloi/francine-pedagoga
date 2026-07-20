@@ -297,6 +297,7 @@ export default function AgendaModule({ patients, userRole, userPermissions, onNa
         insurances={insurances}
         services={services}
         professionals={professionals}
+        allEvents={events}
         canEdit={canEdit}
         canDelete={canDelete}
         onSave={handleSaveEvent}
