@@ -384,9 +384,19 @@ export default function PublicFormPage() {
 
         {/* Questions */}
         <div className="space-y-4">
-          {form.questions.map((q, idx) => (
+          {form.questions.map((q, idx) => {
+            const previousSection = idx > 0 ? form.questions[idx - 1].section : undefined;
+            const showSectionHeader = q.section && q.section !== previousSection;
+
+            return (
+            <React.Fragment key={q.id}>
+            {showSectionHeader && (
+              <div className="flex items-center gap-3 pt-2">
+                <span className="text-xs font-black uppercase tracking-[0.18em]" style={{ color: theme.primaryColor }}>{q.section}</span>
+                <div className="h-px flex-1" style={{ backgroundColor: `${theme.primaryColor}25` }} />
+              </div>
+            )}
             <div
-              key={q.id}
               id={`pq-${q.id}`}
               className={`rounded-3xl shadow-sm border p-5 sm:p-6 transition-colors ${
                 errors[q.id] ? "border-rose-300 ring-2 ring-rose-100" : "border-black/5"
@@ -515,7 +525,9 @@ export default function PublicFormPage() {
                 </p>
               )}
             </div>
-          ))}
+            </React.Fragment>
+            );
+          })}
 
           {form.questions.length === 0 && (
             <p className="text-sm text-slate-400 text-center py-10">Este formulário ainda não possui perguntas.</p>

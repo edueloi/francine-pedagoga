@@ -346,6 +346,9 @@ async function migrate() {
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
   `);
 
+  // ---- FORM QUESTIONS: seção nomeada opcional (agrupamento visual, ex: "Socialização") ----
+  await addColumnIfMissing(conn, "form_questions", "section", "VARCHAR(150) NULL");
+
   // ---- FORM RESPONSES ----
   await conn.query(`
     CREATE TABLE IF NOT EXISTS form_responses (
@@ -360,6 +363,9 @@ async function migrate() {
       FOREIGN KEY (patient_id) REFERENCES patients(id) ON DELETE SET NULL
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
   `);
+
+  // ---- FORM RESPONSES: nome de quem preencheu (equipe logada, ou vazio se via link externo) ----
+  await addColumnIfMissing(conn, "form_responses", "professional_name", "VARCHAR(255) NULL");
 
   // ---- CLINIC SETTINGS (perfil único da clínica: nome, endereço, logo, etc.) ----
   await conn.query(`
@@ -424,6 +430,12 @@ async function migrate() {
 
   // ---- PATIENTS: e-mail para notificações transacionais (idempotente) ----
   await addColumnIfMissing(conn, "patients", "email", "VARCHAR(255) NULL");
+
+  // ---- PATIENTS: link público de atualização cadastral pelos pais (idempotente) ----
+  // Mesmo padrão do anamnese_share_token acima: gerado sob demanda, não proativamente.
+  // Cobre dados cadastrais gerais (nome, nascimento, contato, escola, responsável) —
+  // nunca campos clínicos internos (diagnóstico/CID/medicamentos) nem financeiro/convênio.
+  await addColumnIfMissing(conn, "patients", "cadastro_share_token", "VARCHAR(64) NULL UNIQUE");
 
   // ---- USERS: token de recuperação de senha / convite de acesso (idempotente) ----
   await addColumnIfMissing(conn, "users", "reset_token", "VARCHAR(255) NULL");

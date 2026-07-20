@@ -265,6 +265,8 @@ export interface FormQuestion {
   text: string;
   required: boolean;
   options?: FormOption[];
+  /** Nome da seção que agrupa esta pergunta visualmente (ex: "Socialização"). Opcional. */
+  section?: string;
 }
 
 export interface InterpretationRule {

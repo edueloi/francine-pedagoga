@@ -7,6 +7,7 @@ export function formQuestionFromApi(row: any): FormQuestion {
     text: row.text,
     required: !!row.required,
     options: row.options ?? [],
+    section: row.section ?? undefined,
   };
 }
 
@@ -50,6 +51,7 @@ export function formToApi(form: Partial<Form>): Record<string, any> {
       text: q.text,
       required: q.required ?? false,
       options: q.options ?? [],
+      section: q.section ?? null,
     })),
   };
 }

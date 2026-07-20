@@ -357,8 +357,20 @@ export default function FormsModule({ patients, userRole, userPermissions }: For
               />
             </div>
 
-            {(fillForm.questions ?? []).map((q, idx) => (
-              <div key={q.id} className="p-4 rounded-2xl border border-slate-200 bg-slate-50/50 space-y-3">
+            {(fillForm.questions ?? []).map((q, idx) => {
+              const questions = fillForm.questions ?? [];
+              const previousSection = idx > 0 ? questions[idx - 1].section : undefined;
+              const showSectionHeader = q.section && q.section !== previousSection;
+
+              return (
+              <React.Fragment key={q.id}>
+              {showSectionHeader && (
+                <div className="flex items-center gap-3 pt-2">
+                  <span className="text-xs font-black uppercase tracking-[0.18em] text-[#1070ca]">{q.section}</span>
+                  <div className="h-px flex-1 bg-[#1070ca]/15" />
+                </div>
+              )}
+              <div className="p-4 rounded-2xl border border-slate-200 bg-slate-50/50 space-y-3">
                 <p className="text-sm font-bold text-slate-800">
                   {idx + 1}. {q.text} {q.required && <span className="text-red-500">*</span>}
                 </p>
@@ -421,7 +433,9 @@ export default function FormsModule({ patients, userRole, userPermissions }: For
                   </div>
                 )}
               </div>
-            ))}
+              </React.Fragment>
+              );
+            })}
 
             {(fillForm.questions ?? []).length === 0 && (
               <p className="text-sm text-slate-400 text-center py-6">Este formulário ainda não possui perguntas.</p>

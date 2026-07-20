@@ -27,6 +27,7 @@ import reportsRoutes from "./backend/routes/reports";
 import uploadsRoutes from "./backend/routes/uploads";
 import clinicSettingsRoutes, { publicClinicInfoRouter } from "./backend/routes/clinicSettings";
 import { publicAnamneseRouter } from "./backend/routes/anamneseShare";
+import { publicCadastroRouter } from "./backend/routes/cadastroShare";
 import admissionInviteRoutes, { publicAdmissionRouter } from "./backend/routes/admissionInvite";
 import * as whatsappService from "./backend/services/whatsappService";
 import { startReminderScheduler } from "./backend/services/reminderScheduler";
@@ -72,6 +73,12 @@ app.use("/api/public/clinic-info", publicClinicInfoRouter);
 // authMiddleware. Only exposes the specific patient tied to the token in the URL
 // (see publicAnamneseRouter for details); never leaks other patients' data.
 app.use("/api/public/anamnese", publicAnamneseRouter);
+
+// Public, no-login registration-update endpoint — intentionally mounted WITHOUT
+// authMiddleware. Only exposes/edits general registration fields of the specific
+// patient tied to the token (see publicCadastroRouter for details); never clinical,
+// financial, or insurance data.
+app.use("/api/public/cadastro", publicCadastroRouter);
 
 // Public, no-login pre-admission fill-out endpoint — intentionally mounted WITHOUT
 // authMiddleware. Unlike /api/public/anamnese, this one has no existing patient tied

@@ -5,6 +5,7 @@ import LoginPage from "./components/LoginPage";
 import SplashScreen from "./components/SplashScreen";
 import PublicFormPage from "./components/PublicFormPage";
 import PublicAnamnesePage from "./components/PublicAnamnesePage";
+import PublicCadastroPage from "./components/PublicCadastroPage";
 import PreAdmissionPage from "./components/PreAdmissionPage";
 import ResetPasswordPage from "./components/ResetPasswordPage";
 import AcceptInvitePage from "./components/AcceptInvitePage";
@@ -321,6 +322,17 @@ export default function App() {
     return (
       <Routes>
         <Route path="/anamnese/:token" element={<PublicAnamnesePage />} />
+      </Routes>
+    );
+  }
+
+  // Public, no-login registration-update page (link sent by staff for an EXISTING
+  // patient's family to complete/correct general registration data) — same treatment
+  // as the routes above.
+  if (location.pathname.startsWith("/atualizar-cadastro/")) {
+    return (
+      <Routes>
+        <Route path="/atualizar-cadastro/:token" element={<PublicCadastroPage />} />
       </Routes>
     );
   }

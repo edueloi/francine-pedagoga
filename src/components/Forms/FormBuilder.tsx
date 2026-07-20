@@ -636,10 +636,18 @@ export const FormBuilder: React.FC<FormBuilderProps> = ({ initialData, onSave, o
                       const typeMeta = getTypeMeta(question.type);
                       const isActive = activeQuestionId === question.id;
                       const previewTone = RESULT_TONE_OPTIONS.find((option) => option.value === theme.accentColor);
+                      const previousSection = index > 0 ? questions[index - 1].section : undefined;
+                      const showSectionHeader = question.section && question.section !== previousSection;
 
                       return (
+                        <React.Fragment key={question.id}>
+                        {showSectionHeader && (
+                          <div className="flex items-center gap-3 pt-2">
+                            <span className="text-xs font-black uppercase tracking-[0.18em] text-[#1070ca]">{question.section}</span>
+                            <div className="h-px flex-1 bg-[#1070ca]/15" />
+                          </div>
+                        )}
                         <article
-                          key={question.id}
                           id={`q-${question.id}`}
                           onClick={() => setActiveQuestionId(question.id)}
                           className={`rounded-2xl border p-4 transition-colors sm:p-5 ${
@@ -686,6 +694,16 @@ export const FormBuilder: React.FC<FormBuilderProps> = ({ initialData, onSave, o
                                 </Button>
                               </div>
                             </div>
+
+                            <Input
+                              label="Seção (opcional)"
+                              value={question.section || ""}
+                              onChange={(event) => updateQuestion(question.id, "section", event.target.value || undefined)}
+                              placeholder="Ex.: Socialização, Comportamento, Crise..."
+                            />
+                            <p className="-mt-3 text-xs text-zinc-500">
+                              Perguntas com o mesmo nome de seção aparecem agrupadas sob um cabeçalho comum.
+                            </p>
 
                             <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_220px]">
                               <Input
@@ -824,6 +842,7 @@ export const FormBuilder: React.FC<FormBuilderProps> = ({ initialData, onSave, o
                             </div>
                           </div>
                         </article>
+                        </React.Fragment>
                       );
                     })}
 

@@ -53,6 +53,7 @@ export default function PatientsModule({
   const [editingAnamnese, setEditingAnamnese] = useState<Anamnese | null>(null);
   const [sendingShareLink, setSendingShareLink] = useState(false);
   const [sendingAdmissionLink, setSendingAdmissionLink] = useState(false);
+  const [sendingCadastroLink, setSendingCadastroLink] = useState(false);
 
   // Document Upload Simulator
   const [simulatedDocName, setSimulatedDocName] = useState("");
@@ -370,6 +371,29 @@ export default function PatientsModule({
     }
   };
 
+  // Gera (ou reaproveita, se já existir) o link público de atualização cadastral para
+  // um paciente JÁ existente e copia para a área de transferência. Diferente do link de
+  // Pré-Cadastro (que cria um paciente novo), este atualiza dados gerais de um paciente
+  // já cadastrado — nunca campos clínicos, financeiros ou de convênio.
+  const handleSendCadastroShareLink = async (patientId: string) => {
+    setSendingCadastroLink(true);
+    try {
+      const res = await authFetch(`/api/patients/${patientId}/cadastro-share-link`, {
+        method: "POST",
+      });
+      if (!res.ok) throw new Error("Falha ao gerar link de atualização cadastral");
+      const { url } = await res.json();
+      const fullUrl = `${window.location.origin}${url}`;
+      await navigator.clipboard.writeText(fullUrl);
+      toast.success("Link copiado! Envie para a família completar/atualizar os dados cadastrais.");
+    } catch (err) {
+      console.error(err);
+      toast.error("Não foi possível gerar o link de atualização cadastral. Tente novamente.");
+    } finally {
+      setSendingCadastroLink(false);
+    }
+  };
+
   // Gera um link avulso de pré-admissão (sem paciente ainda) e copia para a área de
   // transferência. Diferente do link de anamnese acima, este cria um paciente novo
   // quando a família preenche — válido por 7 dias, uso único.
@@ -649,6 +673,19 @@ export default function PatientsModule({
                   className="w-full flex items-center justify-center gap-1.5 px-3 py-2 bg-blue-50 text-[#1070ca] border border-blue-100 rounded-xl text-xs font-black uppercase tracking-wider hover:bg-blue-100/60 transition cursor-pointer"
                 >
                   <Pencil className="h-3.5 w-3.5" /> Editar Prontuário
+                </button>
+              )}
+
+              {canEdit && (
+                <button
+                  type="button"
+                  onClick={() => handleSendCadastroShareLink(selectedPat.id)}
+                  disabled={sendingCadastroLink}
+                  className="w-full flex items-center justify-center gap-1.5 px-3 py-2 bg-emerald-50 text-emerald-700 border border-emerald-100 rounded-xl text-xs font-black uppercase tracking-wider hover:bg-emerald-100/60 transition cursor-pointer disabled:opacity-60 disabled:cursor-wait"
+                  title="Gera um link para a família completar/atualizar os dados cadastrais deste paciente"
+                >
+                  {sendingCadastroLink ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Share2 className="h-3.5 w-3.5" />}
+                  Link de Atualização Cadastral
                 </button>
               )}
 

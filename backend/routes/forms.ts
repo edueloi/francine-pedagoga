@@ -17,6 +17,7 @@ interface QuestionInput {
   text: string;
   required?: boolean;
   options?: { label: string; value: number }[];
+  section?: string;
 }
 
 function parseJsonField(value: any) {
@@ -210,8 +211,8 @@ router.post("/", async (req, res) => {
     for (let i = 0; i < questionList.length; i++) {
       const q = questionList[i];
       await connection.query(
-        `INSERT INTO form_questions (form_id, position, type, text, required, options) VALUES (?, ?, ?, ?, ?, ?)`,
-        [formId, i, q.type, q.text, q.required ?? false, JSON.stringify(q.options ?? [])]
+        `INSERT INTO form_questions (form_id, position, type, text, required, options, section) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+        [formId, i, q.type, q.text, q.required ?? false, JSON.stringify(q.options ?? []), q.section ?? null]
       );
     }
 
@@ -271,8 +272,8 @@ router.put("/:id", async (req, res) => {
     for (let i = 0; i < questionList.length; i++) {
       const q = questionList[i];
       await connection.query(
-        `INSERT INTO form_questions (form_id, position, type, text, required, options) VALUES (?, ?, ?, ?, ?, ?)`,
-        [formId, i, q.type, q.text, q.required ?? false, JSON.stringify(q.options ?? [])]
+        `INSERT INTO form_questions (form_id, position, type, text, required, options, section) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+        [formId, i, q.type, q.text, q.required ?? false, JSON.stringify(q.options ?? []), q.section ?? null]
       );
     }
 
@@ -372,6 +373,7 @@ publicFormsRouter.get("/:token", async (req, res) => {
         text: mapped.text,
         required: !!mapped.required,
         options: mapped.options,
+        section: mapped.section ?? undefined,
       };
     }),
   });

@@ -112,4 +112,24 @@ router.post("/:id/anamnese-share-link", async (req, res) => {
   res.json({ token, url: `/anamnese/${token}` });
 });
 
+// POST /:id/cadastro-share-link -> generates (or reuses) a public share token so the
+// family can complete/update this EXISTING patient's general registration data (name,
+// birth date, contact, school, guardian). Idempotent, same pattern as the anamnese link
+// above. Never exposes/edits clinical (diagnosis/CID/medications) or financial/insurance fields.
+router.post("/:id/cadastro-share-link", async (req, res) => {
+  const [rows]: any = await pool.query(
+    "SELECT id, cadastro_share_token FROM patients WHERE id = ?",
+    [req.params.id]
+  );
+  if (rows.length === 0) return res.status(404).json({ error: "Não encontrado" });
+
+  let token = rows[0].cadastro_share_token;
+  if (!token) {
+    token = crypto.randomBytes(16).toString("hex");
+    await pool.query("UPDATE patients SET cadastro_share_token = ? WHERE id = ?", [token, req.params.id]);
+  }
+
+  res.json({ token, url: `/atualizar-cadastro/${token}` });
+});
+
 export default router;
