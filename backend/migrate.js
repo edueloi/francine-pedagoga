@@ -273,6 +273,18 @@ async function migrate() {
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
   `);
 
+  // ---- SERVICES (Gestão > Serviços e Comandas) ----
+  await conn.query(`
+    CREATE TABLE IF NOT EXISTS services (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      name VARCHAR(255) NOT NULL,
+      default_duration_minutes INT NOT NULL DEFAULT 50,
+      color VARCHAR(20) NULL,
+      active BOOLEAN NOT NULL DEFAULT TRUE,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+  `);
+
   // ---- AUDIT LOGS ----
   await conn.query(`
     CREATE TABLE IF NOT EXISTS audit_logs (
@@ -420,6 +432,14 @@ async function migrate() {
 
   // ---- AGENDA EVENTS: vínculo com guia de convênio (idempotente) ----
   await addColumnIfMissing(conn, "agenda_events", "insurance_id", "INT NULL");
+
+  // ---- AGENDA EVENTS: tipo de evento, modalidade, profissional, serviço e recorrência (idempotente) ----
+  await addColumnIfMissing(conn, "agenda_events", "type", "ENUM('consulta','pessoal','bloqueio') NOT NULL DEFAULT 'consulta'");
+  await addColumnIfMissing(conn, "agenda_events", "modality", "ENUM('presencial','online') NOT NULL DEFAULT 'presencial'");
+  await addColumnIfMissing(conn, "agenda_events", "professional_id", "INT NULL");
+  await addColumnIfMissing(conn, "agenda_events", "service_id", "INT NULL");
+  await addColumnIfMissing(conn, "agenda_events", "recurrence_group_id", "CHAR(36) NULL");
+  await addColumnIfMissing(conn, "agenda_events", "recurrence_rule", "VARCHAR(500) NULL");
 
   // ---- ANAMNESE: link público de preenchimento pelos pais (idempotente) ----
   // Diferente do backfill de "forms.share_token" acima, aqui o token NÃO é gerado

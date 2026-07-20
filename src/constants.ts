@@ -13,6 +13,7 @@ import {
   ClipboardList,
   Building2,
   BarChart3,
+  Receipt,
 } from "lucide-react";
 import type { UserPermissions } from "./types";
 
@@ -58,6 +59,12 @@ export const NAV_SECTIONS: NavSection[] = [
     title: "Financeiro",
     items: [
       { label: "Guias & Convênios", path: "/convenios", icon: CreditCard, permissionKey: "insurances" },
+    ],
+  },
+  {
+    title: "Gestão",
+    items: [
+      { label: "Serviços e Comandas", path: "/servicos", icon: Receipt, permissionKey: "services" },
     ],
   },
   {

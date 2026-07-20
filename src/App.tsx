@@ -19,6 +19,7 @@ import SchoolFamilyModule from "./components/SchoolFamilyModule";
 import ActivityBankModule from "./components/ActivityBankModule";
 import AgendaModule from "./components/AgendaModule";
 import InsurancesModule from "./components/InsurancesModule";
+import ServicesModule from "./components/ServicesModule";
 import AuditLogModule from "./components/AuditLogModule";
 import AbaModule from "./components/AbaModule";
 import FormsModule from "./components/FormsModule";
@@ -33,6 +34,7 @@ import { useAuth } from "./contexts/AuthContext";
 import { usePatients } from "./hooks/usePatients";
 import { useSessions } from "./hooks/useSessions";
 import { useInsurances } from "./hooks/useInsurances";
+import { useServices } from "./hooks/useServices";
 import { useUsers } from "./hooks/useUsers";
 import { DEFAULT_ROLE_PERMISSIONS, getActivePermissions } from "./lib/permissions";
 import { useDocumentTitle } from "./hooks/useDocumentTitle";
@@ -52,6 +54,7 @@ const TAB_TO_PATH: Record<string, string> = {
   convenios: "/convenios",
   reports: "/relatorios",
   logs: "/auditoria",
+  services: "/servicos",
 };
 
 const PAGE_TITLES: Record<string, string> = {
@@ -66,6 +69,7 @@ const PAGE_TITLES: Record<string, string> = {
   "/atividades": "Banco de Atividades",
   "/agenda": "Agenda",
   "/convenios": "Convênios",
+  "/servicos": "Serviços e Comandas",
   "/relatorios": "Relatórios",
   "/auditoria": "Auditoria & Usuários",
   "/minha-clinica": "Minha Clínica",
@@ -76,6 +80,7 @@ function AuthenticatedApp() {
   const { patients, setPatients } = usePatients();
   const { sessions, createSession } = useSessions();
   const { insurances, createInsurance, updateInsurance, deleteInsurance } = useInsurances();
+  const { services, createService, updateService, deleteService } = useServices();
   const { users, createUser, updateUser, deleteUser, inviteUser } = useUsers();
 
   const navigate = useNavigate();
@@ -211,7 +216,14 @@ function AuthenticatedApp() {
 
             <Route
               path="/agenda"
-              element={<AgendaModule patients={patients} userRole={userRole} userPermissions={activePermissions} />}
+              element={
+                <AgendaModule
+                  patients={patients}
+                  userRole={userRole}
+                  userPermissions={activePermissions}
+                  onNavigateToPatient={handleDashboardNavigateToProntuario}
+                />
+              }
             />
 
             <Route
@@ -224,6 +236,20 @@ function AuthenticatedApp() {
                   onCreateInsurance={createInsurance}
                   onUpdateInsurance={updateInsurance}
                   onDeleteInsurance={deleteInsurance}
+                  userPermissions={activePermissions}
+                />
+              }
+            />
+
+            <Route
+              path="/servicos"
+              element={
+                <ServicesModule
+                  userRole={userRole}
+                  services={services}
+                  onCreateService={createService}
+                  onUpdateService={updateService}
+                  onDeleteService={deleteService}
                   userPermissions={activePermissions}
                 />
               }

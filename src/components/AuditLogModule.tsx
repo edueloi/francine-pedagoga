@@ -58,6 +58,7 @@ const MODULES_INFO = [
   { id: "schoolFamily", label: "Escola & Família", icon: "🏫" },
   { id: "agenda", label: "Agenda de Atendimentos", icon: "📅" },
   { id: "insurances", label: "Guias & Convênios", icon: "💳" },
+  { id: "services", label: "Serviços e Comandas", icon: "🧾" },
   { id: "reports", label: "Laudos & Relatórios", icon: "📝" },
   { id: "logs", label: "Segurança & Auditoria", icon: "🛡️" }
 ] as const;

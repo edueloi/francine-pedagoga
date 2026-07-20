@@ -16,6 +16,7 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<UserRole, UserPermissions> = {
     logs: { ler: true, criar: true, editar: true, excluir: true },
     forms: { ler: true, criar: true, editar: true, excluir: true },
     clinicSettings: { ler: true, criar: true, editar: true, excluir: true },
+    services: { ler: true, criar: true, editar: true, excluir: true },
   },
   [UserRole.PROFESSIONAL]: {
     patients: { ler: true, criar: true, editar: true, excluir: false },
@@ -29,6 +30,7 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<UserRole, UserPermissions> = {
     logs: { ler: false, criar: false, editar: false, excluir: false },
     forms: { ler: true, criar: true, editar: true, excluir: false },
     clinicSettings: { ler: true, criar: false, editar: false, excluir: false },
+    services: { ler: true, criar: true, editar: true, excluir: false },
   },
   [UserRole.SECRETARY]: {
     patients: { ler: true, criar: true, editar: true, excluir: false },
@@ -42,6 +44,7 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<UserRole, UserPermissions> = {
     logs: { ler: false, criar: false, editar: false, excluir: false },
     forms: { ler: false, criar: false, editar: false, excluir: false },
     clinicSettings: { ler: false, criar: false, editar: false, excluir: false },
+    services: { ler: true, criar: true, editar: true, excluir: true },
   },
   [UserRole.RESTRICTED]: {
     patients: { ler: true, criar: false, editar: false, excluir: false },
@@ -55,6 +58,7 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<UserRole, UserPermissions> = {
     logs: { ler: false, criar: false, editar: false, excluir: false },
     forms: { ler: false, criar: false, editar: false, excluir: false },
     clinicSettings: { ler: false, criar: false, editar: false, excluir: false },
+    services: { ler: false, criar: false, editar: false, excluir: false },
   },
 };
 

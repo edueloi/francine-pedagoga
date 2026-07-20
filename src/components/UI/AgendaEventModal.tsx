@@ -1,10 +1,12 @@
-import React, { useMemo, useState } from 'react';
-import { Calendar, Clock, FileCheck2, Trash2, X, Link2 } from 'lucide-react';
+import React, { useEffect, useMemo, useState } from 'react';
+import { Calendar, Clock, FileCheck2, Trash2, X, Link2, FileText, MessageCircle, Pencil } from 'lucide-react';
 import { Modal, ModalFooter } from './Modal';
 import { Button, IconButton } from './Button';
 import { Combobox } from './Combobox';
+import { Select, Input, Textarea } from './Input';
 import { DatePicker } from './DatePicker';
-import { AgendaEvent, Insurance, Patient } from '../../types';
+import { AgendaEvent, Insurance, Patient, Service, SystemUser } from '../../types';
+import type { AgendaEventScope } from '../../hooks/useAgendaEvents';
 
 const STATUS_META: Record<AgendaEvent['status'], { label: string; dot: string }> = {
   pendente: { label: 'Agendado', dot: 'bg-slate-400' },
@@ -25,17 +27,44 @@ function formatTimeLabel(iso: string) {
   return d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
 }
 
+function toDateInput(iso: string) {
+  const d = new Date(iso);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
+function toTimeInput(iso: string) {
+  const d = new Date(iso);
+  return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+}
+
+function combineToIso(date: string, time: string) {
+  return `${date}T${time}:00`;
+}
+
+function whatsappHref(phone?: string) {
+  if (!phone) return null;
+  const digits = phone.replace(/\D/g, '');
+  if (!digits) return null;
+  const withCountry = digits.startsWith('55') ? digits : `55${digits}`;
+  return `https://wa.me/${withCountry}`;
+}
+
 export interface AgendaEventModalProps {
   isOpen: boolean;
   onClose: () => void;
   event: AgendaEvent | null;
   patients: Patient[];
   insurances: Insurance[];
+  services: Service[];
+  professionals: SystemUser[];
   canEdit: boolean;
   canDelete: boolean;
-  onSave: (id: string, payload: Partial<AgendaEvent>) => Promise<void>;
-  onDelete: (id: string) => Promise<void>;
+  onSave: (id: string, payload: Partial<AgendaEvent>, scope?: AgendaEventScope) => Promise<void>;
+  onDelete: (id: string, scope?: AgendaEventScope) => Promise<void>;
+  onNavigateToPatient?: (patientId: string) => void;
 }
+
+type PendingAction = { kind: 'save'; payload: Partial<AgendaEvent> } | { kind: 'delete' } | null;
 
 export const AgendaEventModal: React.FC<AgendaEventModalProps> = ({
   isOpen,
@@ -43,13 +72,26 @@ export const AgendaEventModal: React.FC<AgendaEventModalProps> = ({
   event,
   patients,
   insurances,
+  services,
+  professionals,
   canEdit,
   canDelete,
   onSave,
   onDelete,
+  onNavigateToPatient,
 }) => {
   const [isEditing, setIsEditing] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [pendingAction, setPendingAction] = useState<PendingAction>(null);
+
+  const [editDate, setEditDate] = useState('');
+  const [editStart, setEditStart] = useState('');
+  const [editEnd, setEditEnd] = useState('');
+  const [editTipo, setEditTipo] = useState<AgendaEvent['tipo']>('Sessão');
+  const [editModality, setEditModality] = useState<AgendaEvent['modality']>('presencial');
+  const [editServiceId, setEditServiceId] = useState('');
+  const [editProfessionalId, setEditProfessionalId] = useState('');
+  const [editAlertas, setEditAlertas] = useState('');
 
   const patient = useMemo(
     () => patients.find((p) => p.id === event?.patientId),
@@ -66,9 +108,51 @@ export const AgendaEventModal: React.FC<AgendaEventModalProps> = ({
     [insurances, event?.insuranceId]
   );
 
+  useEffect(() => {
+    if (event && isEditing) {
+      setEditDate(toDateInput(event.start));
+      setEditStart(toTimeInput(event.start));
+      setEditEnd(toTimeInput(event.end));
+      setEditTipo(event.tipo);
+      setEditModality(event.modality);
+      setEditServiceId(event.serviceId || '');
+      setEditProfessionalId(event.professionalId || '');
+      setEditAlertas(event.alertas || '');
+    }
+  }, [event, isEditing]);
+
   if (!event) return null;
 
   const statusMeta = STATUS_META[event.status];
+  const isPartOfSeries = !!event.recurrenceGroupId;
+  const waHref = whatsappHref(patient?.telefone);
+
+  // For actions affecting a recurring series, ask whether to apply to only this
+  // occurrence or this and every future one before actually running them.
+  const runOrAskScope = (action: PendingAction) => {
+    if (!isPartOfSeries) {
+      runAction(action, 'only');
+      return;
+    }
+    setPendingAction(action);
+  };
+
+  const runAction = async (action: PendingAction, scope: AgendaEventScope) => {
+    if (!action) return;
+    setSaving(true);
+    try {
+      if (action.kind === 'save') {
+        await onSave(event.id, action.payload, scope);
+        setIsEditing(false);
+      } else {
+        await onDelete(event.id, scope);
+        onClose();
+      }
+    } finally {
+      setSaving(false);
+      setPendingAction(null);
+    }
+  };
 
   const handleStatusChange = async (status: AgendaEvent['status']) => {
     setSaving(true);
@@ -88,16 +172,108 @@ export const AgendaEventModal: React.FC<AgendaEventModalProps> = ({
     }
   };
 
-  const handleDelete = async () => {
-    if (!window.confirm('Deseja realmente excluir este agendamento?')) return;
-    setSaving(true);
-    try {
-      await onDelete(event.id);
-      onClose();
-    } finally {
-      setSaving(false);
-    }
+  const handleSaveEdit = () => {
+    runOrAskScope({
+      kind: 'save',
+      payload: {
+        start: combineToIso(editDate, editStart),
+        end: combineToIso(editDate, editEnd),
+        tipo: editTipo,
+        modality: editModality,
+        serviceId: editServiceId || undefined,
+        professionalId: editProfessionalId || undefined,
+        alertas: editAlertas || undefined,
+      },
+    });
   };
+
+  const handleDelete = () => {
+    if (!window.confirm('Deseja realmente excluir este agendamento?')) return;
+    runOrAskScope({ kind: 'delete' });
+  };
+
+  if (isEditing) {
+    return (
+      <Modal isOpen={isOpen} onClose={() => setIsEditing(false)} title="Editar agendamento" size="lg">
+        <div className="space-y-4">
+          <DatePicker value={editDate} onChange={(v) => v && setEditDate(v)} label="Data" />
+          <div className="grid grid-cols-2 gap-3">
+            <Input type="time" label="Início" value={editStart} onChange={(e) => setEditStart(e.target.value)} />
+            <Input type="time" label="Término" value={editEnd} onChange={(e) => setEditEnd(e.target.value)} />
+          </div>
+
+          {event.type === 'consulta' && (
+            <>
+              <Select
+                label="Tipo de atendimento"
+                value={editTipo}
+                onChange={(e) => setEditTipo(e.target.value as AgendaEvent['tipo'])}
+                options={TIPO_OPTIONS.map((t) => ({ value: t, label: t }))}
+              />
+              <Combobox
+                size="sm"
+                placeholder="Serviço ou pacote"
+                options={services.filter((s) => s.active).map((s) => ({ value: s.id, label: s.name }))}
+                value={editServiceId}
+                onChange={(v) => setEditServiceId(v as string)}
+              />
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => setEditModality('presencial')}
+                  className={`rounded-xl border py-2 text-xs font-bold transition ${
+                    editModality === 'presencial' ? 'border-slate-800 bg-slate-800 text-white' : 'border-slate-200 text-slate-500'
+                  }`}
+                >
+                  Presencial
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setEditModality('online')}
+                  className={`rounded-xl border py-2 text-xs font-bold transition ${
+                    editModality === 'online' ? 'border-cyan-600 bg-cyan-600 text-white' : 'border-slate-200 text-slate-500'
+                  }`}
+                >
+                  Online
+                </button>
+              </div>
+              {professionals.length > 1 && (
+                <Combobox
+                  size="sm"
+                  placeholder="Profissional responsável"
+                  options={professionals.map((p) => ({ value: p.id, label: p.name }))}
+                  value={editProfessionalId}
+                  onChange={(v) => setEditProfessionalId(v as string)}
+                />
+              )}
+            </>
+          )}
+
+          <Textarea
+            label="Observações"
+            value={editAlertas}
+            onChange={(e) => setEditAlertas(e.target.value)}
+            rows={3}
+          />
+        </div>
+
+        <ModalFooter className="mt-6">
+          <Button variant="outline" onClick={() => setIsEditing(false)}>Cancelar</Button>
+          <Button variant="primary" loading={saving} onClick={handleSaveEdit}>Salvar Alterações</Button>
+        </ModalFooter>
+
+        {pendingAction && (
+          <Modal isOpen onClose={() => setPendingAction(null)} title="Este agendamento faz parte de uma série" size="xs">
+            <p className="text-sm text-slate-600 mb-4">Deseja aplicar esta alteração somente a esta sessão ou a esta e às sessões futuras da série?</p>
+            <div className="space-y-2">
+              <Button variant="outline" className="w-full" onClick={() => runAction(pendingAction, 'only')}>Apenas esta sessão</Button>
+              <Button variant="primary" className="w-full" onClick={() => runAction(pendingAction, 'future')}>Esta e as sessões futuras</Button>
+            </div>
+          </Modal>
+        )}
+      </Modal>
+    );
+  }
 
   return (
     <Modal isOpen={isOpen} onClose={onClose} size="lg" hideCloseButton>
@@ -125,6 +301,29 @@ export const AgendaEventModal: React.FC<AgendaEventModalProps> = ({
             <span className={`w-1.5 h-1.5 rounded-full ${statusMeta.dot}`} /> {statusMeta.label}
           </span>
         </div>
+
+        {patient && (
+          <div className="flex flex-wrap gap-2 mt-4">
+            {onNavigateToPatient && (
+              <button
+                onClick={() => onNavigateToPatient(patient.id)}
+                className="inline-flex items-center gap-1.5 bg-white/15 hover:bg-white/25 rounded-full px-3 py-1.5 text-[11px] font-bold transition"
+              >
+                <FileText size={12} /> Ver prontuário
+              </button>
+            )}
+            {waHref && (
+              <a
+                href={waHref}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1.5 bg-white/15 hover:bg-white/25 rounded-full px-3 py-1.5 text-[11px] font-bold transition"
+              >
+                <MessageCircle size={12} /> WhatsApp
+              </a>
+            )}
+          </div>
+        )}
       </div>
 
       <div className="pt-5 space-y-5">
@@ -223,10 +422,15 @@ export const AgendaEventModal: React.FC<AgendaEventModalProps> = ({
       </div>
 
       <ModalFooter align="between" className="mt-6">
-        <div>
+        <div className="flex gap-2">
           {canDelete && (
             <IconButton variant="danger" onClick={handleDelete} disabled={saving} title="Excluir agendamento">
               <Trash2 size={15} />
+            </IconButton>
+          )}
+          {canEdit && (
+            <IconButton variant="outline" onClick={() => setIsEditing(true)} disabled={saving} title="Editar agendamento">
+              <Pencil size={15} />
             </IconButton>
           )}
         </div>
@@ -234,6 +438,16 @@ export const AgendaEventModal: React.FC<AgendaEventModalProps> = ({
           <Button variant="outline" onClick={onClose}>Fechar</Button>
         </div>
       </ModalFooter>
+
+      {pendingAction && (
+        <Modal isOpen onClose={() => setPendingAction(null)} title="Este agendamento faz parte de uma série" size="xs">
+          <p className="text-sm text-slate-600 mb-4">Deseja aplicar esta ação somente a esta sessão ou a esta e às sessões futuras da série?</p>
+          <div className="space-y-2">
+            <Button variant="outline" className="w-full" onClick={() => runAction(pendingAction, 'only')}>Apenas esta sessão</Button>
+            <Button variant="primary" className="w-full" onClick={() => runAction(pendingAction, 'future')}>Esta e as sessões futuras</Button>
+          </div>
+        </Modal>
+      )}
     </Modal>
   );
 };

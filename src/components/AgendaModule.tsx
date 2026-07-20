@@ -1,8 +1,10 @@
 import React, { useLayoutEffect, useMemo, useRef, useState } from "react";
 import { ChevronLeft, ChevronRight, Plus, CalendarRange, UserCheck, CalendarClock, LayoutGrid, List, CalendarDays } from "lucide-react";
 import { Patient, UserRole, UserPermissions, AgendaEvent } from "../types";
-import { useAgendaEvents } from "../hooks/useAgendaEvents";
+import { useAgendaEvents, AgendaEventScope } from "../hooks/useAgendaEvents";
 import { useInsurances } from "../hooks/useInsurances";
+import { useServices } from "../hooks/useServices";
+import { useUsers } from "../hooks/useUsers";
 import {
   IconButton,
   DatePicker,
@@ -19,6 +21,7 @@ interface AgendaModuleProps {
   patients: Patient[];
   userRole: UserRole;
   userPermissions?: UserPermissions;
+  onNavigateToPatient?: (patientId: string) => void;
 }
 
 type AgendaView = "week" | "month" | "list";
@@ -50,13 +53,19 @@ function startOfWeek(date: Date) {
   return d;
 }
 
-export default function AgendaModule({ patients, userRole, userPermissions }: AgendaModuleProps) {
+export default function AgendaModule({ patients, userRole, userPermissions, onNavigateToPatient }: AgendaModuleProps) {
   const canCreate = userPermissions ? userPermissions.agenda.criar : userRole !== UserRole.RESTRICTED;
   const canEdit = userPermissions ? userPermissions.agenda.editar : userRole !== UserRole.RESTRICTED;
   const canDelete = userPermissions ? userPermissions.agenda.excluir : userRole === UserRole.ADMIN;
 
   const { events, updateEvent, deleteEvent, createEvent } = useAgendaEvents();
   const { insurances } = useInsurances();
+  const { services } = useServices();
+  const { users } = useUsers();
+  const professionals = useMemo(
+    () => users.filter((u) => u.role === UserRole.PROFESSIONAL || u.role === UserRole.ADMIN),
+    [users]
+  );
 
   const [view, setView] = useState<AgendaView>("week");
   const [currentDate, setCurrentDate] = useState(new Date());
@@ -77,22 +86,46 @@ export default function AgendaModule({ patients, userRole, userPermissions }: Ag
     return () => observer.disconnect();
   }, []);
 
+  // "Sessão N/M" badge: derived from all non-cancelled siblings sharing the same
+  // recurrence_group_id, sorted by start time — there's no stored index/count.
+  const recurrenceIndexByEventId = useMemo(() => {
+    const map = new Map<string, { index: number; count: number }>();
+    const groups = new Map<string, AgendaEvent[]>();
+    events
+      .filter((ev) => ev.recurrenceGroupId && ev.status !== "cancelado")
+      .forEach((ev) => {
+        const key = ev.recurrenceGroupId!;
+        if (!groups.has(key)) groups.set(key, []);
+        groups.get(key)!.push(ev);
+      });
+    groups.forEach((group) => {
+      const sorted = [...group].sort((a, b) => new Date(a.start).getTime() - new Date(b.start).getTime());
+      sorted.forEach((ev, idx) => map.set(ev.id, { index: idx + 1, count: sorted.length }));
+    });
+    return map;
+  }, [events]);
+
   const plannerEvents: AgendaPlannerEvent[] = useMemo(
     () =>
       events.map((ev) => {
         const patient = patients.find((p) => p.id === ev.patientId);
+        const service = services.find((s) => s.id === ev.serviceId);
+        const recurrence = recurrenceIndexByEventId.get(ev.id);
         return {
           id: ev.id,
-          title: patient?.nome || ev.title,
+          title: ev.type === "consulta" ? patient?.nome || ev.title : ev.title,
           start: ev.start,
           end: ev.end,
-          type: "consulta",
+          type: ev.type,
           status: STATUS_TO_PLANNER[ev.status],
-          serviceName: ev.tipo,
+          modality: ev.modality,
+          serviceName: service?.name || ev.tipo,
           comandaId: ev.insuranceId,
+          recurrenceIndex: recurrence?.index,
+          recurrenceCount: recurrence?.count,
         };
       }),
-    [events, patients]
+    [events, patients, services, recurrenceIndexByEventId]
   );
 
   const listEvents = useMemo(() => {
@@ -138,8 +171,8 @@ export default function AgendaModule({ patients, userRole, userPermissions }: Ag
     setIsFormOpen(true);
   };
 
-  const handleSaveEvent = async (id: string, payload: Partial<AgendaEvent>) => {
-    await updateEvent(id, payload);
+  const handleSaveEvent = async (id: string, payload: Partial<AgendaEvent>, scope?: AgendaEventScope) => {
+    await updateEvent(id, payload, scope);
     setSelectedEvent((prev) => (prev && prev.id === id ? { ...prev, ...payload } : prev));
   };
 
@@ -262,10 +295,13 @@ export default function AgendaModule({ patients, userRole, userPermissions }: Ag
         event={selectedEvent}
         patients={patients}
         insurances={insurances}
+        services={services}
+        professionals={professionals}
         canEdit={canEdit}
         canDelete={canDelete}
         onSave={handleSaveEvent}
         onDelete={deleteEvent}
+        onNavigateToPatient={onNavigateToPatient}
       />
 
       <AgendaEventFormModal
@@ -273,6 +309,8 @@ export default function AgendaModule({ patients, userRole, userPermissions }: Ag
         onClose={() => setIsFormOpen(false)}
         initialDate={formInitialDate}
         patients={patients}
+        services={services}
+        professionals={professionals}
         onCreate={createEvent}
       />
     </div>

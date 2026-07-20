@@ -128,6 +128,14 @@ export interface Activity {
   categoria: string;
 }
 
+export interface Service {
+  id: string;
+  name: string;
+  defaultDurationMinutes: number;
+  color?: string;
+  active: boolean;
+}
+
 export interface Insurance {
   id: string;
   patientId?: string;
@@ -168,6 +176,21 @@ export interface AgendaEvent {
   status: "confirmado" | "pendente" | "cancelado" | "realizado";
   alertas?: string;
   insuranceId?: string;
+  type: "consulta" | "pessoal" | "bloqueio";
+  modality: "presencial" | "online";
+  professionalId?: string;
+  serviceId?: string;
+  recurrenceGroupId?: string;
+  recurrenceRule?: string;
+}
+
+export type RecurrenceFrequency = "DAILY" | "WEEKLY" | "TWICE_WEEKLY" | "THREE_WEEKLY" | "MONTHLY" | "YEARLY";
+
+export interface RecurrenceConfig {
+  freq: RecurrenceFrequency;
+  interval: number;
+  count?: number;
+  endDate?: string; // YYYY-MM-DD
 }
 
 export interface AuditLog {
@@ -237,6 +260,7 @@ export interface UserPermissions {
   logs: ModulePermission;
   forms: ModulePermission;
   clinicSettings: ModulePermission;
+  services: ModulePermission;
 }
 
 export interface SystemUser {

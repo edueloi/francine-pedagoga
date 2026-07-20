@@ -4,6 +4,7 @@ import {
   Session,
   Insurance,
   InsuranceProvider,
+  Service,
   SystemUser,
   AgendaEvent,
   AgendaItem,
@@ -192,6 +193,12 @@ export function agendaEventFromApi(row: any): AgendaEvent {
     status: row.status,
     alertas: row.alertas ?? undefined,
     insuranceId: row.insurance_id != null ? String(row.insurance_id) : undefined,
+    type: row.type ?? "consulta",
+    modality: row.modality ?? "presencial",
+    professionalId: row.professional_id != null ? String(row.professional_id) : undefined,
+    serviceId: row.service_id != null ? String(row.service_id) : undefined,
+    recurrenceGroupId: row.recurrence_group_id ?? undefined,
+    recurrenceRule: row.recurrence_rule ?? undefined,
   };
 }
 
@@ -205,6 +212,29 @@ export function agendaEventToApi(event: Partial<AgendaEvent>): Record<string, an
     status: event.status ?? "pendente",
     alertas: event.alertas ?? null,
     insurance_id: event.insuranceId ?? null,
+    type: event.type ?? "consulta",
+    modality: event.modality ?? "presencial",
+    professional_id: event.professionalId ?? null,
+    service_id: event.serviceId ?? null,
+  };
+}
+
+export function serviceFromApi(row: any): Service {
+  return {
+    id: String(row.id),
+    name: row.name,
+    defaultDurationMinutes: row.default_duration_minutes ?? 50,
+    color: row.color ?? undefined,
+    active: !!row.active,
+  };
+}
+
+export function serviceToApi(service: Partial<Service>): Record<string, any> {
+  return {
+    name: service.name,
+    default_duration_minutes: service.defaultDurationMinutes ?? 50,
+    color: service.color ?? null,
+    active: service.active ?? true,
   };
 }
 
