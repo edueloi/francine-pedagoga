@@ -81,7 +81,10 @@ publicCadastroRouter.post("/:token", publicSubmitRateLimiter, async (req, res) =
 
   const body = req.body ?? {};
   const columns = Object.keys(FIELD_TO_COLUMN);
-  const setClause = columns.map((field) => `${FIELD_TO_COLUMN[field]} = ?`).join(", ");
+  // COALESCE keeps the existing DB value for any field the family left blank/omitted —
+  // a partial submission must never null out data already on file (nome is NOT NULL,
+  // and other fields shouldn't be silently erased just because this form didn't ask for them).
+  const setClause = columns.map((field) => `${FIELD_TO_COLUMN[field]} = COALESCE(?, ${FIELD_TO_COLUMN[field]})`).join(", ");
   const values = columns.map((field) => (body[field] !== undefined && body[field] !== "" ? body[field] : null));
 
   try {
