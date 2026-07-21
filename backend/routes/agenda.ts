@@ -199,20 +199,31 @@ router.put("/:id", async (req, res) => {
     if (beforeRows.length === 0) return res.status(404).json({ error: "Não encontrado" });
     const before = beforeRows[0];
 
-    const values = COLUMNS.map((col) => req.body[col] ?? null);
+    // Merge with the existing row: callers like "link insurance" or "change status"
+    // send a partial payload (only the field that changed), so any column missing
+    // from req.body must fall back to its current value — not null/a hardcoded
+    // default, which would blank out unrelated fields (and violate NOT NULL columns
+    // like start_time/end_time). before.* is already a plain "YYYY-MM-DD HH:MM:SS"
+    // string (backend/db.ts sets dateStrings:true), matching the format we write.
+    const merged: Record<string, any> = {};
+    for (const col of COLUMNS) {
+      merged[col] = col in req.body ? req.body[col] : before[col];
+    }
+
+    const values = COLUMNS.map((col) => merged[col] ?? null);
 
     if (scope === "future" && before.recurrence_group_id) {
       // Apply the time-of-day/duration CHANGE (delta) to every future occurrence,
       // preserving each one's own date — not the literal start_time/end_time from
       // the edited row, which would collapse every future session onto one date.
       const oldStart = new Date(before.start_time);
-      const newStart = new Date(req.body.start_time);
-      const newEnd = new Date(req.body.end_time);
+      const newStart = new Date(merged.start_time);
+      const newEnd = new Date(merged.end_time);
       const startDeltaMs = newStart.getTime() - oldStart.getTime();
       const durationMs = newEnd.getTime() - newStart.getTime();
 
       const nonTemporalSet = NON_TEMPORAL_COLUMNS.map((col) => `${col} = ?`).join(", ");
-      const nonTemporalValues = NON_TEMPORAL_COLUMNS.map((col) => req.body[col] ?? null);
+      const nonTemporalValues = NON_TEMPORAL_COLUMNS.map((col) => merged[col] ?? null);
 
       const [futureRows]: any = await pool.query(
         `SELECT id, start_time FROM agenda_events

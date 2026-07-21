@@ -10,12 +10,21 @@
 import fs from "fs";
 import path from "path";
 import QRCode from "qrcode";
-import makeWASocket, {
-  useMultiFileAuthState,
-  fetchLatestBaileysVersion,
-  DisconnectReason,
-  type WASocket,
-} from "@whiskeysockets/baileys";
+import type { WASocket } from "@whiskeysockets/baileys";
+
+// @whiskeysockets/baileys ships as a pure ESM package ("type": "module"). The
+// production build bundles server.ts as CJS with `--packages=external`, so a
+// static `import`/`require` of baileys resolves to a broken module at runtime
+// (ERR_REQUIRE_ESM) — the socket silently never connects and no QR code is ever
+// generated. A dynamic import() works from CJS at runtime in both dev (tsx/ESM)
+// and the production bundle, so every baileys export is loaded lazily through it.
+let baileysModule: typeof import("@whiskeysockets/baileys") | null = null;
+async function loadBaileys() {
+  if (!baileysModule) {
+    baileysModule = await import("@whiskeysockets/baileys");
+  }
+  return baileysModule;
+}
 
 // process.cwd() (not import.meta.url) so this resolves correctly both under `tsx` (ESM, dev)
 // and in the esbuild CJS bundle used in production, where import.meta is empty/undefined.
@@ -126,6 +135,8 @@ export function getStatus() {
 }
 
 async function createSocket() {
+  const { default: makeWASocket, useMultiFileAuthState, fetchLatestBaileysVersion, DisconnectReason } = await loadBaileys();
+
   if (!fs.existsSync(SESSION_DIR)) {
     fs.mkdirSync(SESSION_DIR, { recursive: true });
   }

@@ -202,21 +202,27 @@ export function agendaEventFromApi(row: any): AgendaEvent {
   };
 }
 
+// Only emits keys that are actually present on `event` (checked via `in`, since a
+// field can be intentionally set to undefined/null to clear it). This lets the
+// same mapper serve both full-form creation and partial updates (e.g. just
+// changing status or linking an insurance) without the update overwriting every
+// other column with a default/null — the backend PUT merges missing keys with
+// the row's current values, so omitting a key here means "leave it as is".
 export function agendaEventToApi(event: Partial<AgendaEvent>): Record<string, any> {
-  return {
-    title: event.title,
-    patient_id: event.patientId ?? null,
-    start_time: event.start ? event.start.replace("T", " ").slice(0, 19) : null,
-    end_time: event.end ? event.end.replace("T", " ").slice(0, 19) : null,
-    tipo: event.tipo ?? "Sessão",
-    status: event.status ?? "pendente",
-    alertas: event.alertas ?? null,
-    insurance_id: event.insuranceId ?? null,
-    type: event.type ?? "consulta",
-    modality: event.modality ?? "presencial",
-    professional_id: event.professionalId ?? null,
-    service_id: event.serviceId ?? null,
-  };
+  const body: Record<string, any> = {};
+  if ('title' in event) body.title = event.title;
+  if ('patientId' in event) body.patient_id = event.patientId ?? null;
+  if ('start' in event) body.start_time = event.start ? event.start.replace("T", " ").slice(0, 19) : null;
+  if ('end' in event) body.end_time = event.end ? event.end.replace("T", " ").slice(0, 19) : null;
+  if ('tipo' in event) body.tipo = event.tipo ?? "Sessão";
+  if ('status' in event) body.status = event.status ?? "pendente";
+  if ('alertas' in event) body.alertas = event.alertas ?? null;
+  if ('insuranceId' in event) body.insurance_id = event.insuranceId ?? null;
+  if ('type' in event) body.type = event.type ?? "consulta";
+  if ('modality' in event) body.modality = event.modality ?? "presencial";
+  if ('professionalId' in event) body.professional_id = event.professionalId ?? null;
+  if ('serviceId' in event) body.service_id = event.serviceId ?? null;
+  return body;
 }
 
 export function serviceFromApi(row: any): Service {
