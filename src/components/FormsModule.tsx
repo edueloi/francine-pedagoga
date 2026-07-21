@@ -14,6 +14,7 @@ import {
 import { Patient, UserPermissions, UserRole, Form, FormResponse, FormQuestion } from "../types";
 import { useForms } from "../hooks/useForms";
 import { FormBuilder } from "./Forms/FormBuilder";
+import { FormFillFields } from "./Forms/FormFillFields";
 import { PageHeader } from "./UI/PageHeader";
 import { Button } from "./UI/Button";
 import { AppCard } from "./UI/AppCard";
@@ -357,89 +358,12 @@ export default function FormsModule({ patients, userRole, userPermissions }: For
               />
             </div>
 
-            {(fillForm.questions ?? []).map((q, idx) => {
-              const questions = fillForm.questions ?? [];
-              const previousSection = idx > 0 ? questions[idx - 1].section : undefined;
-              const showSectionHeader = q.section && q.section !== previousSection;
-
-              return (
-              <React.Fragment key={q.id}>
-              {showSectionHeader && (
-                <div className="flex items-center gap-3 pt-2">
-                  <span className="text-xs font-black uppercase tracking-[0.18em] text-[#1070ca]">{q.section}</span>
-                  <div className="h-px flex-1 bg-[#1070ca]/15" />
-                </div>
-              )}
-              <div className="p-4 rounded-2xl border border-slate-200 bg-slate-50/50 space-y-3">
-                <p className="text-sm font-bold text-slate-800">
-                  {idx + 1}. {q.text} {q.required && <span className="text-red-500">*</span>}
-                </p>
-
-                {q.type === "text" && (
-                  <input
-                    type="text"
-                    className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm"
-                    value={fillAnswers[q.id] ?? ""}
-                    onChange={(e) => handleAnswerChange(q.id, e.target.value)}
-                  />
-                )}
-
-                {q.type === "textarea" && (
-                  <textarea
-                    className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm resize-none"
-                    rows={3}
-                    value={fillAnswers[q.id] ?? ""}
-                    onChange={(e) => handleAnswerChange(q.id, e.target.value)}
-                  />
-                )}
-
-                {q.type === "number" && (
-                  <input
-                    type="number"
-                    className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm"
-                    value={fillAnswers[q.id] ?? ""}
-                    onChange={(e) => handleAnswerChange(q.id, e.target.value === "" ? "" : Number(e.target.value))}
-                  />
-                )}
-
-                {(q.type === "radio" || q.type === "select") && (
-                  <div className="flex flex-col gap-2">
-                    {(q.options ?? []).map((opt, oi) => (
-                      <label key={oi} className="flex items-center gap-2 text-sm font-medium text-slate-700">
-                        <input
-                          type="radio"
-                          name={`q-${q.id}`}
-                          checked={fillAnswers[q.id] === opt.value}
-                          onChange={() => handleAnswerChange(q.id, opt.value)}
-                        />
-                        {opt.label}
-                      </label>
-                    ))}
-                  </div>
-                )}
-
-                {q.type === "checkbox" && (
-                  <div className="flex flex-col gap-2">
-                    {(q.options ?? []).map((opt, oi) => (
-                      <label key={oi} className="flex items-center gap-2 text-sm font-medium text-slate-700">
-                        <input
-                          type="checkbox"
-                          checked={Array.isArray(fillAnswers[q.id]) && fillAnswers[q.id].includes(opt.value)}
-                          onChange={() => handleToggleCheckbox(q.id, opt.value)}
-                        />
-                        {opt.label}
-                      </label>
-                    ))}
-                  </div>
-                )}
-              </div>
-              </React.Fragment>
-              );
-            })}
-
-            {(fillForm.questions ?? []).length === 0 && (
-              <p className="text-sm text-slate-400 text-center py-6">Este formulário ainda não possui perguntas.</p>
-            )}
+            <FormFillFields
+              questions={fillForm.questions ?? []}
+              answers={fillAnswers}
+              onAnswerChange={handleAnswerChange}
+              onToggleCheckbox={handleToggleCheckbox}
+            />
           </div>
         )}
       </Modal>

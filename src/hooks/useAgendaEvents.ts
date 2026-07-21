@@ -5,6 +5,33 @@ import { agendaEventFromApi, agendaEventToApi } from "../lib/apiMappers";
 
 export type AgendaEventScope = "only" | "future";
 
+// Thrown when the backend rejects a create/update with 409 (another event for the
+// same professional overlaps the requested time range). Callers can catch this
+// specifically to offer "save anyway" (resubmitting with force: true) instead of
+// just showing a generic failure message.
+export class AgendaConflictError extends Error {
+  conflict: { id: string; title: string; start_time: string; end_time: string };
+  constructor(message: string, conflict: AgendaConflictError["conflict"]) {
+    super(message);
+    this.name = "AgendaConflictError";
+    this.conflict = conflict;
+  }
+}
+
+async function throwForStatus(res: Response, fallbackMessage: string) {
+  const data = await res.json().catch(() => ({}));
+  if (res.status === 409 && data.conflict) {
+    throw new AgendaConflictError(data.error || fallbackMessage, data.conflict);
+  }
+  throw new Error(data.error || fallbackMessage);
+}
+
+export type BulkAgendaAction =
+  | { action: "status"; ids: string[]; status: AgendaEvent["status"] }
+  | { action: "shift_time"; ids: string[]; offsetMinutes: number }
+  | { action: "professional"; ids: string[]; professionalId: string | null }
+  | { action: "delete"; ids: string[] };
+
 export function useAgendaEvents(filters?: { patientId?: string; status?: string }) {
   const { authFetch, user } = useAuth();
   const [events, setEvents] = useState<AgendaEvent[]>([]);
@@ -35,7 +62,7 @@ export function useAgendaEvents(filters?: { patientId?: string; status?: string 
   }, [user, reloadEvents]);
 
   const createEvent = useCallback(
-    async (payload: Partial<AgendaEvent>, recurrence?: RecurrenceConfig) => {
+    async (payload: Partial<AgendaEvent>, recurrence?: RecurrenceConfig, force?: boolean) => {
       const body: Record<string, any> = agendaEventToApi(payload);
       if (recurrence) {
         body.recurrence_freq = recurrence.freq;
@@ -43,11 +70,12 @@ export function useAgendaEvents(filters?: { patientId?: string; status?: string 
         if (recurrence.count) body.recurrence_count = recurrence.count;
         if (recurrence.endDate) body.recurrence_end_date = recurrence.endDate;
       }
+      if (force) body.force = true;
       const res = await authFetch("/api/agenda", {
         method: "POST",
         body: JSON.stringify(body),
       });
-      if (!res.ok) throw new Error("Falha ao criar evento de agenda");
+      if (!res.ok) await throwForStatus(res, "Falha ao criar evento de agenda");
       await reloadEvents();
       return res.json();
     },
@@ -55,12 +83,14 @@ export function useAgendaEvents(filters?: { patientId?: string; status?: string 
   );
 
   const updateEvent = useCallback(
-    async (id: string, payload: Partial<AgendaEvent>, scope: AgendaEventScope = "only") => {
+    async (id: string, payload: Partial<AgendaEvent>, scope: AgendaEventScope = "only", force?: boolean) => {
+      const body: Record<string, any> = agendaEventToApi(payload);
+      if (force) body.force = true;
       const res = await authFetch(`/api/agenda/${id}?scope=${scope}`, {
         method: "PUT",
-        body: JSON.stringify(agendaEventToApi(payload)),
+        body: JSON.stringify(body),
       });
-      if (!res.ok) throw new Error("Falha ao atualizar evento de agenda");
+      if (!res.ok) await throwForStatus(res, "Falha ao atualizar evento de agenda");
       await reloadEvents();
     },
     [authFetch, reloadEvents]
@@ -75,5 +105,17 @@ export function useAgendaEvents(filters?: { patientId?: string; status?: string 
     [authFetch, reloadEvents]
   );
 
-  return { events, loading, error, reloadEvents, setEvents, createEvent, updateEvent, deleteEvent };
+  const bulkAction = useCallback(
+    async (payload: BulkAgendaAction) => {
+      const res = await authFetch("/api/agenda/bulk", {
+        method: "POST",
+        body: JSON.stringify(payload),
+      });
+      if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || "Falha ao aplicar ação em lote");
+      await reloadEvents();
+    },
+    [authFetch, reloadEvents]
+  );
+
+  return { events, loading, error, reloadEvents, setEvents, createEvent, updateEvent, deleteEvent, bulkAction };
 }

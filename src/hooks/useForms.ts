@@ -72,8 +72,9 @@ export function useForms() {
   );
 
   const getResponses = useCallback(
-    async (formId: string): Promise<FormResponse[]> => {
-      const res = await authFetch(`/api/forms/${formId}/responses`);
+    async (formId: string, patientId?: string): Promise<FormResponse[]> => {
+      const qs = patientId ? `?patientId=${encodeURIComponent(patientId)}` : "";
+      const res = await authFetch(`/api/forms/${formId}/responses${qs}`);
       if (!res.ok) throw new Error("Falha ao carregar respostas");
       const data = await res.json();
       return data.map(formResponseFromApi);
@@ -94,6 +95,19 @@ export function useForms() {
     [authFetch]
   );
 
+  const updateResponse = useCallback(
+    async (responseId: string, answers: Record<string, any>) => {
+      const res = await authFetch(`/api/forms/responses/${responseId}`, {
+        method: "PUT",
+        body: JSON.stringify({ answers }),
+      });
+      if (!res.ok) throw new Error((await res.json()).error || "Falha ao atualizar resposta");
+      const data = await res.json();
+      return formResponseFromApi(data);
+    },
+    [authFetch]
+  );
+
   return {
     forms,
     loading,
@@ -105,5 +119,6 @@ export function useForms() {
     deleteForm,
     getResponses,
     submitResponse,
+    updateResponse,
   };
 }

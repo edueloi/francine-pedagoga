@@ -4,6 +4,7 @@ import { Patient, PatientStatus, Anamnese, TimelineItem, UserRole, UserPermissio
 import { useAuth } from "../contexts/AuthContext";
 import { patientFromApi, patientToApi } from "../lib/apiMappers";
 import { WizardModal, DocFile } from "./Patient/PatientFormWizard";
+import { PatientFichaAcompanhamentoTab } from "./Patient/PatientFichaAcompanhamentoTab";
 import { useAnamneses } from "../hooks/useAnamneses";
 import { useTimeline } from "../hooks/useTimeline";
 import { useInsuranceProviders } from "../hooks/useInsuranceProviders";
@@ -37,7 +38,7 @@ export default function PatientsModule({
   const { anamneses, saveAnamnese } = useAnamneses();
   const { timeline, addTimelineItem } = useTimeline(selectedPat?.id);
   const { providers: insuranceProviders } = useInsuranceProviders();
-  const [detailTab, setDetailTab] = useState<"cadastro" | "anamnese" | "documentos" | "timeline">("cadastro");
+  const [detailTab, setDetailTab] = useState<"cadastro" | "anamnese" | "documentos" | "timeline" | "ficha">("cadastro");
 
   // Search and Filter States
   const [searchQuery, setSearchQuery] = useState("");
@@ -728,7 +729,8 @@ export default function PatientsModule({
                   { id: "cadastro", label: "📋 Cadastro & Finanças" },
                   { id: "anamnese", label: "🧠 Anamnese" },
                   { id: "documentos", label: "📎 Documentos & Laudos" },
-                  { id: "timeline", label: "📈 Evoluções & Linha do Tempo" }
+                  { id: "timeline", label: "📈 Evoluções & Linha do Tempo" },
+                  { id: "ficha", label: "📝 Ficha de Acompanhamento" }
                 ].map((tab) => (
                   <button
                     key={tab.id}
@@ -1298,6 +1300,10 @@ export default function PatientsModule({
                     )}
                   </div>
                 </div>
+              )}
+
+              {detailTab === "ficha" && (
+                <PatientFichaAcompanhamentoTab patient={selectedPat} canEdit={canEdit} />
               )}
             </div>
           </div>

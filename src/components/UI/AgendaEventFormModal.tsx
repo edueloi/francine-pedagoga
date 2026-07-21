@@ -1,55 +1,12 @@
-import React, { useEffect, useMemo, useState } from 'react';
-import { Briefcase, CalendarDays, Ban, MapPin, Video, ChevronRight, Repeat } from 'lucide-react';
+import React, { useEffect, useState } from 'react';
+import { ChevronRight, Repeat } from 'lucide-react';
 import { Modal, ModalFooter } from './Modal';
 import { Button } from './Button';
 import { Combobox } from './Combobox';
-import { Select, Input, Textarea } from './Input';
+import { Input } from './Input';
 import { DatePicker } from './DatePicker';
+import { AgendaEventFields, AgendaEventFieldsValue, EventType } from './AgendaEventFields';
 import { AgendaEvent, Patient, Service, SystemUser, RecurrenceConfig, RecurrenceFrequency } from '../../types';
-
-const TIPO_OPTIONS: AgendaEvent['tipo'][] = ['Sessão', 'Avaliação', 'Reunião', 'Visita Escolar', 'Retorno'];
-const STATUS_OPTIONS: AgendaEvent['status'][] = ['pendente', 'confirmado', 'realizado', 'cancelado'];
-const STATUS_LABELS: Record<AgendaEvent['status'], string> = {
-  pendente: 'Agendado',
-  confirmado: 'Confirmado',
-  realizado: 'Realizado',
-  cancelado: 'Cancelado',
-};
-
-type EventType = AgendaEvent['type'];
-
-const TYPE_META: Record<
-  EventType,
-  { label: string; subtitle: string; icon: React.ReactNode; activeBorder: string; activeBg: string; activeText: string; activeDot: string }
-> = {
-  consulta: {
-    label: 'Consulta',
-    subtitle: 'Sessão clínica',
-    icon: <Briefcase size={16} />,
-    activeBorder: 'border-indigo-500',
-    activeBg: 'bg-indigo-50',
-    activeText: 'text-indigo-600',
-    activeDot: 'bg-indigo-500',
-  },
-  pessoal: {
-    label: 'Evento Pessoal',
-    subtitle: 'Compromisso pessoal',
-    icon: <CalendarDays size={16} />,
-    activeBorder: 'border-amber-500',
-    activeBg: 'bg-amber-50',
-    activeText: 'text-amber-600',
-    activeDot: 'bg-amber-500',
-  },
-  bloqueio: {
-    label: 'Bloqueio',
-    subtitle: 'Horário indisponível',
-    icon: <Ban size={16} />,
-    activeBorder: 'border-slate-500',
-    activeBg: 'bg-slate-100',
-    activeText: 'text-slate-600',
-    activeDot: 'bg-slate-500',
-  },
-};
 
 interface RecurrencePreset {
   label: string;
@@ -165,12 +122,15 @@ const RecurrencePickerModal: React.FC<RecurrencePickerModalProps> = ({ isOpen, o
     return (
       <Modal isOpen={isOpen} onClose={onClose} title="Configurar Repetição" size="sm">
         <div className="space-y-4">
-          <Select
-            label="Frequência de repetição"
-            value={customFreq}
-            onChange={(e) => setCustomFreq(e.target.value as RecurrenceFrequency)}
-            options={(Object.keys(FREQ_LABELS) as RecurrenceFrequency[]).map((f) => ({ value: f, label: FREQ_LABELS[f] }))}
-          />
+          <div>
+            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5">Frequência de repetição</p>
+            <Combobox
+              size="sm"
+              value={customFreq}
+              onChange={(v) => setCustomFreq(v as RecurrenceFrequency)}
+              options={(Object.keys(FREQ_LABELS) as RecurrenceFrequency[]).map((f) => ({ value: f, label: FREQ_LABELS[f] }))}
+            />
+          </div>
 
           <div className="grid grid-cols-2 gap-3 items-end">
             <Input
@@ -279,23 +239,49 @@ export interface AgendaEventFormModalProps {
   patients: Patient[];
   services: Service[];
   professionals: SystemUser[];
-  onCreate: (payload: Partial<AgendaEvent>, recurrence?: RecurrenceConfig) => Promise<any>;
+  onCreate: (payload: Partial<AgendaEvent>, recurrence?: RecurrenceConfig, force?: boolean) => Promise<any>;
 }
 
 function toDateInput(date: Date) {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
 }
 
+function toTimeInput(date: Date) {
+  return `${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`;
+}
+
 function combineToIso(date: string, time: string) {
   return `${date}T${time}:00`;
 }
 
-function addMinutes(time: string, minutes: number): string {
+function addMinutesToTime(time: string, minutes: number): string {
   const [h, m] = time.split(':').map(Number);
   const total = h * 60 + m + minutes;
   const wrapped = ((total % 1440) + 1440) % 1440;
   return `${String(Math.floor(wrapped / 60)).padStart(2, '0')}:${String(wrapped % 60).padStart(2, '0')}`;
 }
+
+const DEFAULT_VALUE = (initialDate?: Date | null, professionals?: SystemUser[]): AgendaEventFieldsValue => {
+  // A click on an empty grid slot passes the exact clicked time (e.g. 10:00); the
+  // generic "Novo Agendamento" button passes the day with no meaningful time
+  // (midnight), so it falls back to a sensible default start of 08:00.
+  const hasClickedTime = !!initialDate && (initialDate.getHours() !== 0 || initialDate.getMinutes() !== 0);
+  const startTime = hasClickedTime ? toTimeInput(initialDate!) : '08:00';
+  return {
+    type: 'consulta',
+    patientId: '',
+    freeTitle: '',
+    serviceId: '',
+    modality: 'presencial',
+    professionalId: professionals?.length === 1 ? professionals[0].id : '',
+    status: 'pendente',
+    date: toDateInput(initialDate || new Date()),
+    startTime,
+    endTime: addMinutesToTime(startTime, 50),
+    tipo: 'Sessão',
+    alertas: '',
+  };
+};
 
 export const AgendaEventFormModal: React.FC<AgendaEventFormModalProps> = ({
   isOpen,
@@ -306,192 +292,78 @@ export const AgendaEventFormModal: React.FC<AgendaEventFormModalProps> = ({
   professionals,
   onCreate,
 }) => {
-  const [type, setType] = useState<EventType>('consulta');
-  const [patientId, setPatientId] = useState('');
-  const [freeTitle, setFreeTitle] = useState('');
-  const [serviceId, setServiceId] = useState('');
-  const [modality, setModality] = useState<AgendaEvent['modality']>('presencial');
-  const [professionalId, setProfessionalId] = useState('');
-  const [status, setStatus] = useState<AgendaEvent['status']>('pendente');
-  const [date, setDate] = useState('');
-  const [startTime, setStartTime] = useState('08:00');
-  const [endTime, setEndTime] = useState('08:50');
-  const [tipo, setTipo] = useState<AgendaEvent['tipo']>('Sessão');
-  const [alertas, setAlertas] = useState('');
+  const [fields, setFields] = useState<AgendaEventFieldsValue>(() => DEFAULT_VALUE(initialDate, professionals));
   const [recurrence, setRecurrence] = useState<RecurrenceConfig | null>(null);
   const [recurrenceModalOpen, setRecurrenceModalOpen] = useState(false);
   const [saving, setSaving] = useState(false);
-
-  const activeServices = useMemo(() => services.filter((s) => s.active), [services]);
+  const [conflict, setConflict] = useState<{ id: string; title: string; start_time: string; end_time: string } | null>(null);
 
   useEffect(() => {
     if (isOpen) {
-      setType('consulta');
-      setPatientId('');
-      setFreeTitle('');
-      setServiceId('');
-      setModality('presencial');
-      setProfessionalId(professionals.length === 1 ? professionals[0].id : '');
-      setStatus('pendente');
-      setDate(toDateInput(initialDate || new Date()));
-      setStartTime('08:00');
-      setEndTime('08:50');
-      setTipo('Sessão');
-      setAlertas('');
+      setFields(DEFAULT_VALUE(initialDate, professionals));
       setRecurrence(null);
+      setConflict(null);
     }
-  }, [isOpen, initialDate, professionals]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen, initialDate]);
 
-  const handleServiceChange = (id: string) => {
-    setServiceId(id);
-    const service = activeServices.find((s) => s.id === id);
-    if (service) setEndTime(addMinutes(startTime, service.defaultDurationMinutes));
+  const handleFieldsChange = (patch: Partial<AgendaEventFieldsValue>) => {
+    setFields((prev) => ({ ...prev, ...patch }));
   };
 
-  const handleStartTimeChange = (time: string) => {
-    setStartTime(time);
-    const service = activeServices.find((s) => s.id === serviceId);
-    if (service) setEndTime(addMinutes(time, service.defaultDurationMinutes));
+  const isConsulta = fields.type === 'consulta';
+  const canSubmit = isConsulta ? !!fields.patientId : !!fields.freeTitle.trim();
+
+  const buildPayload = (): Partial<AgendaEvent> => {
+    const patient = patients.find((p) => p.id === fields.patientId);
+    return {
+      title: isConsulta ? patient?.nome || 'Paciente' : fields.freeTitle,
+      patientId: isConsulta ? fields.patientId : undefined,
+      start: combineToIso(fields.date, fields.startTime),
+      end: combineToIso(fields.date, fields.endTime),
+      tipo: fields.tipo,
+      status: fields.status,
+      alertas: fields.alertas || undefined,
+      type: fields.type,
+      modality: fields.modality,
+      professionalId: fields.professionalId || undefined,
+      serviceId: isConsulta ? fields.serviceId || undefined : undefined,
+    };
   };
 
-  const isConsulta = type === 'consulta';
-  const canSubmit = isConsulta ? !!patientId : !!freeTitle.trim();
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!canSubmit || !date || !startTime || !endTime) return;
-    const patient = patients.find((p) => p.id === patientId);
+  const submit = async (force?: boolean) => {
     setSaving(true);
     try {
-      await onCreate(
-        {
-          title: isConsulta ? patient?.nome || 'Paciente' : freeTitle,
-          patientId: isConsulta ? patientId : undefined,
-          start: combineToIso(date, startTime),
-          end: combineToIso(date, endTime),
-          tipo,
-          status,
-          alertas: alertas || undefined,
-          type,
-          modality,
-          professionalId: professionalId || undefined,
-          serviceId: isConsulta ? serviceId || undefined : undefined,
-        },
-        recurrence || undefined
-      );
+      await onCreate(buildPayload(), recurrence || undefined, force);
+      setConflict(null);
       onClose();
+    } catch (err: any) {
+      if (err.name === 'AgendaConflictError') {
+        setConflict(err.conflict);
+      } else {
+        throw err;
+      }
     } finally {
       setSaving(false);
     }
   };
 
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!canSubmit || !fields.date || !fields.startTime || !fields.endTime) return;
+    await submit(false);
+  };
+
   return (
     <Modal isOpen={isOpen} onClose={onClose} title="Novo agendamento" size="xl">
       <form onSubmit={handleSubmit} className="space-y-5">
-        <div className="grid grid-cols-3 gap-2">
-          {(Object.keys(TYPE_META) as EventType[]).map((t) => {
-            const meta = TYPE_META[t];
-            const active = type === t;
-            return (
-              <button
-                key={t}
-                type="button"
-                onClick={() => setType(t)}
-                className={`rounded-2xl border-2 p-3 text-left transition ${
-                  active ? `${meta.activeBorder} ${meta.activeBg}` : 'border-slate-200 bg-white'
-                }`}
-              >
-                <div className="flex items-center justify-between">
-                  <span className={active ? meta.activeText : 'text-slate-400'}>{meta.icon}</span>
-                  {active && <span className={`h-2 w-2 rounded-full ${meta.activeDot}`} />}
-                </div>
-                <p className="mt-1.5 text-xs font-black text-slate-800">{meta.label}</p>
-                <p className="text-[10px] text-slate-400">{meta.subtitle}</p>
-              </button>
-            );
-          })}
-        </div>
-
-        <div className="grid sm:grid-cols-2 gap-5">
-          <div className="space-y-4">
-            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Identificação</p>
-
-            {isConsulta ? (
-              <>
-                <Combobox
-                  size="sm"
-                  placeholder="Pesquisar ou adicionar paciente..."
-                  options={patients.map((p) => ({ value: p.id, label: p.nome }))}
-                  value={patientId}
-                  onChange={(v) => setPatientId(v as string)}
-                />
-                <Combobox
-                  size="sm"
-                  placeholder="Pesquisar serviço ou pacote..."
-                  options={activeServices.map((s) => ({ value: s.id, label: s.name }))}
-                  value={serviceId}
-                  onChange={(v) => handleServiceChange(v as string)}
-                />
-                <div>
-                  <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5">Modalidade</p>
-                  <div className="grid grid-cols-2 gap-2">
-                    <button
-                      type="button"
-                      onClick={() => setModality('presencial')}
-                      className={`inline-flex items-center justify-center gap-1.5 rounded-xl border py-2 text-xs font-bold transition ${
-                        modality === 'presencial' ? 'border-slate-800 bg-slate-800 text-white' : 'border-slate-200 text-slate-500'
-                      }`}
-                    >
-                      <MapPin size={13} /> Presencial
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setModality('online')}
-                      className={`inline-flex items-center justify-center gap-1.5 rounded-xl border py-2 text-xs font-bold transition ${
-                        modality === 'online' ? 'border-cyan-600 bg-cyan-600 text-white' : 'border-slate-200 text-slate-500'
-                      }`}
-                    >
-                      <Video size={13} /> Online
-                    </button>
-                  </div>
-                </div>
-                <Select
-                  label="Status do Atendimento"
-                  value={status}
-                  onChange={(e) => setStatus(e.target.value as AgendaEvent['status'])}
-                  options={STATUS_OPTIONS.map((s) => ({ value: s, label: STATUS_LABELS[s] }))}
-                />
-              </>
-            ) : (
-              <Input
-                label={type === 'bloqueio' ? 'Motivo do Bloqueio' : 'Título do Evento'}
-                value={freeTitle}
-                onChange={(e) => setFreeTitle(e.target.value)}
-                placeholder={type === 'bloqueio' ? 'Ex: Feriado, manutenção...' : 'Ex: Reunião de equipe'}
-              />
-            )}
-          </div>
-
-          <div className="space-y-4">
-            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Horário e Repetição</p>
-
-            <DatePicker value={date} onChange={(v) => v && setDate(v)} label="Data" />
-
-            <div className="grid grid-cols-2 gap-3">
-              <Input type="time" label="Início" value={startTime} onChange={(e) => handleStartTimeChange(e.target.value)} />
-              <Input type="time" label="Término" value={endTime} onChange={(e) => setEndTime(e.target.value)} />
-            </div>
-
-            {professionals.length > 1 && (
-              <Combobox
-                size="sm"
-                placeholder="Buscar profissional..."
-                options={professionals.map((p) => ({ value: p.id, label: p.name }))}
-                value={professionalId}
-                onChange={(v) => setProfessionalId(v as string)}
-              />
-            )}
-
+        <AgendaEventFields
+          value={fields}
+          onChange={handleFieldsChange}
+          patients={patients}
+          services={services}
+          professionals={professionals}
+          recurrenceSlot={
             <button
               type="button"
               onClick={() => setRecurrenceModalOpen(true)}
@@ -502,18 +374,8 @@ export const AgendaEventFormModal: React.FC<AgendaEventFormModalProps> = ({
               </span>
               <span className="text-[11px] font-black text-indigo-600">{recurrenceSummaryLabel(recurrence)}</span>
             </button>
-          </div>
-        </div>
-
-        <div>
-          <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5">Prontuário e Observações</p>
-          <Textarea
-            value={alertas}
-            onChange={(e) => setAlertas(e.target.value)}
-            rows={3}
-            placeholder="Detalhes sobre o atendimento, queixas ou observações importantes..."
-          />
-        </div>
+          }
+        />
 
         <ModalFooter>
           <Button type="button" variant="outline" onClick={onClose}>Cancelar</Button>
@@ -529,6 +391,20 @@ export const AgendaEventFormModal: React.FC<AgendaEventFormModalProps> = ({
         value={recurrence}
         onChange={setRecurrence}
       />
+
+      {conflict && (
+        <Modal isOpen onClose={() => setConflict(null)} title="Conflito de horário" size="xs">
+          <p className="text-sm text-slate-600 mb-4">
+            Já existe um agendamento (<strong>{conflict.title}</strong>) para este profissional entre{' '}
+            {new Date(conflict.start_time).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })} e{' '}
+            {new Date(conflict.end_time).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}. Deseja agendar mesmo assim?
+          </p>
+          <ModalFooter>
+            <Button variant="outline" onClick={() => setConflict(null)}>Voltar</Button>
+            <Button variant="primary" loading={saving} onClick={() => submit(true)}>Agendar mesmo assim</Button>
+          </ModalFooter>
+        </Modal>
+      )}
     </Modal>
   );
 };

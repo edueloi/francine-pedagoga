@@ -1,12 +1,13 @@
 import React, { useLayoutEffect, useMemo, useRef, useState } from "react";
-import { ChevronLeft, ChevronRight, Plus, CalendarRange, UserCheck, CalendarClock, LayoutGrid, List, CalendarDays } from "lucide-react";
+import { ChevronLeft, ChevronRight, Plus, CalendarRange, UserCheck, CalendarClock, LayoutGrid, List, CalendarDays, CheckSquare, X, Zap } from "lucide-react";
 import { Patient, UserRole, UserPermissions, AgendaEvent } from "../types";
-import { useAgendaEvents, AgendaEventScope } from "../hooks/useAgendaEvents";
+import { useAgendaEvents, AgendaEventScope, BulkAgendaAction } from "../hooks/useAgendaEvents";
 import { useInsurances } from "../hooks/useInsurances";
 import { useServices } from "../hooks/useServices";
 import { useUsers } from "../hooks/useUsers";
 import {
   IconButton,
+  Button,
   DatePicker,
   AgendaPlanner,
   AgendaPlannerEvent,
@@ -14,6 +15,7 @@ import {
   AgendaListView,
   AgendaEventModal,
   AgendaEventFormModal,
+  AgendaBulkActionModal,
 } from "./UI";
 import { AGENDA_STATUS_COLORS, AGENDA_TYPE_COLORS, hexToRgba } from "./UI/agendaColors";
 
@@ -58,7 +60,7 @@ export default function AgendaModule({ patients, userRole, userPermissions, onNa
   const canEdit = userPermissions ? userPermissions.agenda.editar : userRole !== UserRole.RESTRICTED;
   const canDelete = userPermissions ? userPermissions.agenda.excluir : userRole === UserRole.ADMIN;
 
-  const { events, updateEvent, deleteEvent, createEvent } = useAgendaEvents();
+  const { events, updateEvent, deleteEvent, createEvent, bulkAction } = useAgendaEvents();
   const { insurances } = useInsurances();
   const { services } = useServices();
   const { users } = useUsers();
@@ -72,6 +74,33 @@ export default function AgendaModule({ patients, userRole, userPermissions, onNa
   const [selectedEvent, setSelectedEvent] = useState<AgendaEvent | null>(null);
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [formInitialDate, setFormInitialDate] = useState<Date | null>(null);
+
+  // Multi-select mode: lets staff pick arbitrary, unrelated events (different
+  // patients/days — not necessarily one recurrence series) and apply one bulk
+  // action (status/time shift/professional/delete) to all of them at once.
+  const [isSelecting, setIsSelecting] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [bulkModalOpen, setBulkModalOpen] = useState(false);
+
+  const toggleSelecting = () => {
+    setIsSelecting((prev) => !prev);
+    setSelectedIds(new Set());
+  };
+
+  const toggleEventSelected = (id: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const handleBulkApply = async (action: Omit<BulkAgendaAction, "ids">) => {
+    await bulkAction({ ...action, ids: Array.from(selectedIds) } as BulkAgendaAction);
+    setSelectedIds(new Set());
+    setIsSelecting(false);
+  };
 
   const toolbarRef = useRef<HTMLDivElement>(null);
   const [toolbarHeight, setToolbarHeight] = useState(0);
@@ -161,6 +190,10 @@ export default function AgendaModule({ patients, userRole, userPermissions, onNa
   };
 
   const handleEventClick = (plannerEvent: AgendaPlannerEvent) => {
+    if (isSelecting) {
+      toggleEventSelected(String(plannerEvent.id));
+      return;
+    }
     const original = events.find((ev) => ev.id === plannerEvent.id);
     if (original) setSelectedEvent(original);
   };
@@ -171,8 +204,8 @@ export default function AgendaModule({ patients, userRole, userPermissions, onNa
     setIsFormOpen(true);
   };
 
-  const handleSaveEvent = async (id: string, payload: Partial<AgendaEvent>, scope?: AgendaEventScope) => {
-    await updateEvent(id, payload, scope);
+  const handleSaveEvent = async (id: string, payload: Partial<AgendaEvent>, scope?: AgendaEventScope, force?: boolean) => {
+    await updateEvent(id, payload, scope, force);
     setSelectedEvent((prev) => (prev && prev.id === id ? { ...prev, ...payload } : prev));
   };
 
@@ -250,7 +283,38 @@ export default function AgendaModule({ patients, userRole, userPermissions, onNa
                 </button>
               ))}
             </div>
+
+            {(canEdit || canDelete) && (
+              <button
+                onClick={toggleSelecting}
+                className={`inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all border ${
+                  isSelecting
+                    ? "bg-indigo-600 border-indigo-600 text-white"
+                    : "bg-white border-zinc-200 text-zinc-500 hover:border-indigo-300"
+                }`}
+              >
+                {isSelecting ? <X size={13} /> : <CheckSquare size={13} />}
+                {isSelecting ? "Cancelar seleção" : "Selecionar"}
+              </button>
+            )}
           </div>
+
+          {isSelecting && (
+            <div className="flex flex-wrap items-center justify-between gap-2 px-4 py-2.5 sm:px-5 border-t border-slate-100 bg-indigo-50/40">
+              <span className="text-[11px] font-black text-indigo-700 uppercase tracking-wide">
+                {selectedIds.size} selecionado{selectedIds.size === 1 ? "" : "s"}
+              </span>
+              <Button
+                size="sm"
+                variant="primary"
+                leftIcon={<Zap size={14} />}
+                disabled={selectedIds.size === 0}
+                onClick={() => setBulkModalOpen(true)}
+              >
+                Aplicar ação em lote
+              </Button>
+            </div>
+          )}
         </div>
       </div>
 
@@ -281,11 +345,19 @@ export default function AgendaModule({ patients, userRole, userPermissions, onNa
             stickyHeaderTop={toolbarHeight}
             onSlotClick={handleSlotClick}
             onEventClick={handleEventClick}
+            isSelecting={isSelecting}
+            selectedIds={selectedIds}
           />
         )}
 
         {view === "list" && (
-          <AgendaListView events={listEvents} onEventClick={handleEventClick} stickyTop={toolbarHeight} />
+          <AgendaListView
+            events={listEvents}
+            onEventClick={handleEventClick}
+            stickyTop={toolbarHeight}
+            isSelecting={isSelecting}
+            selectedIds={selectedIds}
+          />
         )}
       </div>
 
@@ -313,6 +385,15 @@ export default function AgendaModule({ patients, userRole, userPermissions, onNa
         services={services}
         professionals={professionals}
         onCreate={createEvent}
+      />
+
+      <AgendaBulkActionModal
+        isOpen={bulkModalOpen}
+        onClose={() => setBulkModalOpen(false)}
+        selectedCount={selectedIds.size}
+        professionals={professionals}
+        canDelete={canDelete}
+        onApply={handleBulkApply}
       />
     </div>
   );

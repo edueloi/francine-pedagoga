@@ -95,6 +95,9 @@ export interface AgendaPlannerProps {
   skippedHours?: number[];
   closedDates?: { date: string; label: string }[];
   stickyHeaderTop?: number;
+  /** Multi-select mode: renders a checkbox on each card instead of opening it on click. */
+  isSelecting?: boolean;
+  selectedIds?: Set<string>;
 }
 
 type NormalizedEvent = AgendaPlannerEvent & {
@@ -340,6 +343,8 @@ export const AgendaPlanner: React.FC<AgendaPlannerProps> = ({
   skippedHours = [],
   closedDates = [],
   stickyHeaderTop = 0,
+  isSelecting = false,
+  selectedIds,
 }) => {
   const headerDaysRef = useRef<HTMLDivElement>(null);
   const gridScrollRef = useRef<HTMLDivElement>(null);
@@ -974,6 +979,7 @@ export const AgendaPlanner: React.FC<AgendaPlannerProps> = ({
 
                           const leftPercent = (event.col / event.colCount) * 100;
                           const widthPercent = 100 / event.colCount;
+                          const isCardSelected = isSelecting && !!selectedIds?.has(String(event.id));
 
                           return (
                             /* Wrapper: controla posição + tooltip (overflow-visible) */
@@ -998,14 +1004,17 @@ export const AgendaPlanner: React.FC<AgendaPlannerProps> = ({
                               <button
                                 className="absolute inset-0 overflow-hidden rounded-xl border text-left shadow-sm transition-all duration-150 hover:z-[14] hover:shadow-lg active:scale-[0.995] w-full"
                                 style={{
-                                  background:
-                                    event.type === 'bloqueio'
+                                  background: isCardSelected
+                                    ? 'linear-gradient(135deg, rgba(79,70,229,0.22), rgba(79,70,229,0.10))'
+                                    : event.type === 'bloqueio'
                                       ? 'linear-gradient(180deg, #f1f5f9 0%, #e2e8f0 100%)'
                                       : `linear-gradient(135deg, ${hexToRgba(accent, 0.14)}, ${hexToRgba(accent, 0.06)})`,
-                                  borderColor:
-                                    event.type === 'bloqueio'
+                                  borderColor: isCardSelected
+                                    ? '#4f46e5'
+                                    : event.type === 'bloqueio'
                                       ? '#cbd5e1'
                                       : hexToRgba(accent, 0.28),
+                                  borderWidth: isCardSelected ? 2 : 1,
                                   color: event.type === 'bloqueio' ? '#334155' : '#1e293b',
                                   boxShadow:
                                     event.type === 'bloqueio'
@@ -1017,6 +1026,16 @@ export const AgendaPlanner: React.FC<AgendaPlannerProps> = ({
                                   onEventClick?.(event);
                                 }}
                               >
+                                {isSelecting && (
+                                  <div
+                                    className={cx(
+                                      'absolute top-1 right-1 z-10 flex h-4 w-4 items-center justify-center rounded-[4px] border-2',
+                                      isCardSelected ? 'bg-indigo-600 border-indigo-600' : 'bg-white/90 border-slate-300'
+                                    )}
+                                  >
+                                    {isCardSelected && <CheckSquare size={11} className="text-white" strokeWidth={3} />}
+                                  </div>
+                                )}
                                 <div
                                   className="absolute bottom-0 left-0 top-0 w-1.5"
                                   style={{ backgroundColor: accent }}

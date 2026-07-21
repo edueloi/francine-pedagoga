@@ -27,6 +27,8 @@ export { AgendaEventModal } from './AgendaEventModal';
 export type { AgendaEventModalProps } from './AgendaEventModal';
 export { AgendaEventFormModal } from './AgendaEventFormModal';
 export type { AgendaEventFormModalProps } from './AgendaEventFormModal';
+export { AgendaBulkActionModal } from './AgendaBulkActionModal';
+export type { AgendaBulkActionModalProps } from './AgendaBulkActionModal';
 export { Combobox } from './Combobox';
 export { RichTextEditor } from './RichTextEditor';
 

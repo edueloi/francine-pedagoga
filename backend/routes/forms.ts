@@ -113,17 +113,39 @@ async function sendFormResultEmail(patientId: any, matched: any, totalScore: num
 
 // Persists a form response row and returns the mapped record. Shared by the authenticated
 // and public POST .../responses handlers so scoring/storage logic lives in one place.
-async function storeFormResponse(formId: string, patientId: any, answerMap: Record<string, any>, form: any, questions: any[]) {
+// professionalName is the logged-in staff member's name (blank for public/external fill-outs,
+// since those have no user session).
+async function storeFormResponse(formId: string, patientId: any, answerMap: Record<string, any>, form: any, questions: any[], professionalName?: string) {
   const { totalScore, matched } = computeScoreAndInterpretation(form, questions, answerMap);
 
   const [result]: any = await pool.query(
-    `INSERT INTO form_responses (form_id, patient_id, answers, total_score, matched_interpretation)
-     VALUES (?, ?, ?, ?, ?)`,
-    [formId, patientId ?? null, JSON.stringify(answerMap), totalScore, matched ? JSON.stringify(matched) : null]
+    `INSERT INTO form_responses (form_id, patient_id, answers, total_score, matched_interpretation, professional_name)
+     VALUES (?, ?, ?, ?, ?, ?)`,
+    [formId, patientId ?? null, JSON.stringify(answerMap), totalScore, matched ? JSON.stringify(matched) : null, professionalName ?? null]
   );
 
   const [rows]: any = await pool.query("SELECT * FROM form_responses WHERE id = ?", [result.insertId]);
   sendFormResultEmail(patientId, matched, totalScore);
+  return {
+    ...rows[0],
+    answers: parseJsonField(rows[0].answers) ?? {},
+    matched_interpretation: parseJsonField(rows[0].matched_interpretation),
+  };
+}
+
+// Recomputes score/interpretation and overwrites an existing response's answers.
+// Shared shape with storeFormResponse, but UPDATE instead of INSERT — used by the
+// patient chart's "edit a past ficha" flow.
+async function updateFormResponse(responseId: string, answerMap: Record<string, any>, form: any, questions: any[]) {
+  const { totalScore, matched } = computeScoreAndInterpretation(form, questions, answerMap);
+
+  await pool.query(
+    `UPDATE form_responses SET answers = ?, total_score = ?, matched_interpretation = ? WHERE id = ?`,
+    [JSON.stringify(answerMap), totalScore, matched ? JSON.stringify(matched) : null, responseId]
+  );
+
+  const [rows]: any = await pool.query("SELECT * FROM form_responses WHERE id = ?", [responseId]);
+  if (rows.length === 0) return null;
   return {
     ...rows[0],
     answers: parseJsonField(rows[0].answers) ?? {},
@@ -301,15 +323,25 @@ router.delete("/:id", async (req, res) => {
   res.status(204).end();
 });
 
-// GET /:id/responses -> list responses for a form
+// GET /:id/responses -> list responses for a form, optionally filtered to one patient
+// (?patientId=X) — used by the patient chart's "Ficha AT" tab to show only that
+// patient's history instead of every response ever submitted for the form.
 router.get("/:id/responses", async (req, res) => {
+  const { patientId } = req.query;
+  const conditions = ["r.form_id = ?"];
+  const params: any[] = [req.params.id];
+  if (patientId) {
+    conditions.push("r.patient_id = ?");
+    params.push(patientId);
+  }
+
   const [rows]: any = await pool.query(
     `SELECT r.*, p.nome AS patient_nome
      FROM form_responses r
      LEFT JOIN patients p ON p.id = r.patient_id
-     WHERE r.form_id = ?
+     WHERE ${conditions.join(" AND ")}
      ORDER BY r.submitted_at DESC`,
-    [req.params.id]
+    params
   );
   res.json(
     rows.map((row: any) => ({
@@ -318,6 +350,31 @@ router.get("/:id/responses", async (req, res) => {
       matched_interpretation: parseJsonField(row.matched_interpretation),
     }))
   );
+});
+
+// PUT /responses/:id -> re-score and overwrite an existing response's answers.
+// Mounted before /:id/responses so the literal "responses" segment isn't swallowed
+// by the :id param of other routes.
+router.put("/responses/:id", async (req, res) => {
+  const { answers } = req.body;
+
+  const [responseRows]: any = await pool.query("SELECT * FROM form_responses WHERE id = ?", [req.params.id]);
+  if (responseRows.length === 0) return res.status(404).json({ error: "Resposta não encontrada" });
+  const formId = responseRows[0].form_id;
+
+  const [formRows]: any = await pool.query("SELECT * FROM forms WHERE id = ?", [formId]);
+  if (formRows.length === 0) return res.status(404).json({ error: "Formulário não encontrado" });
+  const form = mapFormRow(formRows[0]);
+
+  const [questionRows]: any = await pool.query(
+    "SELECT * FROM form_questions WHERE form_id = ? ORDER BY position ASC",
+    [formId]
+  );
+  const questions = questionRows.map(mapQuestionRow);
+
+  const answerMap: Record<string, any> = answers && typeof answers === "object" ? answers : {};
+  const saved = await updateFormResponse(req.params.id, answerMap, form, questions);
+  res.json(saved);
 });
 
 // POST /:id/responses -> compute score, find matching interpretation, store response
@@ -336,7 +393,7 @@ router.post("/:id/responses", async (req, res) => {
   const questions = questionRows.map(mapQuestionRow);
 
   const answerMap: Record<string, any> = answers && typeof answers === "object" ? answers : {};
-  const saved = await storeFormResponse(formId, patientId, answerMap, form, questions);
+  const saved = await storeFormResponse(formId, patientId, answerMap, form, questions, req.user?.name);
   res.status(201).json(saved);
 });
 

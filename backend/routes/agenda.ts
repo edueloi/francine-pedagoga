@@ -133,15 +133,53 @@ function stepOccurrence(start: Date, freq: string, interval: number, i: number):
   return d;
 }
 
+// Finds other non-cancelled events for the same professional whose time range
+// overlaps [startTime, endTime), excluding excludeId (used when editing). Only
+// checked for single (non-recurring) create/edit — recurrence series intentionally
+// skip conflict checks, same as the reference system this was adapted from, since
+// blocking an entire series on one clashing occurrence is a bigger UX problem than
+// it solves.
+async function findConflict(professionalId: number | null, startTime: string, endTime: string, excludeId?: string) {
+  if (!professionalId) return null;
+  const params: any[] = [professionalId, endTime, startTime];
+  let query = `
+    SELECT id, title, start_time, end_time FROM agenda_events
+    WHERE professional_id = ? AND status != 'cancelado' AND start_time < ? AND end_time > ?
+  `;
+  if (excludeId) {
+    query += " AND id != ?";
+    params.push(excludeId);
+  }
+  query += " LIMIT 1";
+  const [rows]: any = await pool.query(query, params);
+  return rows[0] || null;
+}
+
 router.post("/", async (req, res) => {
   try {
     const {
       title, patient_id, start_time, end_time, tipo, status, alertas, insurance_id,
       type, modality, professional_id, service_id,
       recurrence_freq, recurrence_interval, recurrence_count, recurrence_end_date,
+      force,
     } = req.body;
 
+    if (new Date(end_time) <= new Date(start_time)) {
+      return res.status(400).json({ error: "O horário de término deve ser depois do horário de início" });
+    }
+
     const finalProfessionalId = await resolveProfessionalId(professional_id);
+
+    if (!recurrence_freq && !force) {
+      const conflict = await findConflict(finalProfessionalId, start_time.replace("T", " "), end_time.replace("T", " "));
+      if (conflict) {
+        return res.status(409).json({
+          error: "Já existe um agendamento nesse horário para este profissional",
+          conflict: { id: conflict.id, title: conflict.title, start_time: conflict.start_time, end_time: conflict.end_time },
+        });
+      }
+    }
+
     const durationMs = new Date(end_time).getTime() - new Date(start_time).getTime();
 
     const freq = recurrence_freq || null;
@@ -210,6 +248,20 @@ router.put("/:id", async (req, res) => {
       merged[col] = col in req.body ? req.body[col] : before[col];
     }
 
+    if (new Date(merged.end_time) <= new Date(merged.start_time)) {
+      return res.status(400).json({ error: "O horário de término deve ser depois do horário de início" });
+    }
+
+    if (scope === "only" && !req.body.force) {
+      const conflict = await findConflict(merged.professional_id, merged.start_time, merged.end_time, req.params.id);
+      if (conflict) {
+        return res.status(409).json({
+          error: "Já existe um agendamento nesse horário para este profissional",
+          conflict: { id: conflict.id, title: conflict.title, start_time: conflict.start_time, end_time: conflict.end_time },
+        });
+      }
+    }
+
     const values = COLUMNS.map((col) => merged[col] ?? null);
 
     if (scope === "future" && before.recurrence_group_id) {
@@ -274,6 +326,71 @@ router.delete("/:id", async (req, res) => {
   } catch (err: any) {
     console.error("[Agenda] Falha ao remover agendamento:", err.message);
     res.status(400).json({ error: "Falha ao remover evento de agenda" });
+  }
+});
+
+// POST /bulk -> apply one action to an arbitrary set of event ids (not necessarily
+// part of the same recurrence series) selected via the Agenda's multi-select mode.
+// action: "status" | "shift_time" | "professional" | "delete".
+router.post("/bulk", async (req, res) => {
+  try {
+    const { ids, action, status, offsetMinutes, professionalId } = req.body;
+
+    if (!Array.isArray(ids) || ids.length === 0) {
+      return res.status(400).json({ error: "Nenhum agendamento selecionado" });
+    }
+    if (ids.length > 200) {
+      return res.status(400).json({ error: "Selecione no máximo 200 agendamentos por vez" });
+    }
+
+    if (action === "delete") {
+      const placeholders = ids.map(() => "?").join(", ");
+      await pool.query(`DELETE FROM agenda_events WHERE id IN (${placeholders})`, ids);
+      return res.status(204).end();
+    }
+
+    if (action === "status") {
+      if (!status) return res.status(400).json({ error: "Status é obrigatório" });
+      const placeholders = ids.map(() => "?").join(", ");
+      await pool.query(`UPDATE agenda_events SET status = ? WHERE id IN (${placeholders})`, [status, ...ids]);
+    } else if (action === "professional") {
+      const placeholders = ids.map(() => "?").join(", ");
+      await pool.query(
+        `UPDATE agenda_events SET professional_id = ? WHERE id IN (${placeholders})`,
+        [professionalId ?? null, ...ids]
+      );
+    } else if (action === "shift_time") {
+      const minutes = parseInt(offsetMinutes);
+      if (!minutes || isNaN(minutes)) {
+        return res.status(400).json({ error: "Deslocamento de horário inválido" });
+      }
+      // Shift is relative per-row — each selected event keeps its own date, only
+      // moved by the same offset — so this must be row-by-row, not a single
+      // set-based UPDATE (unlike status/professional, which apply the same
+      // literal value to every row).
+      const placeholders = ids.map(() => "?").join(", ");
+      const [rows]: any = await pool.query(
+        `SELECT id, start_time, end_time FROM agenda_events WHERE id IN (${placeholders})`,
+        ids
+      );
+      for (const row of rows) {
+        const newStart = new Date(new Date(row.start_time).getTime() + minutes * 60_000);
+        const newEnd = new Date(new Date(row.end_time).getTime() + minutes * 60_000);
+        await pool.query(
+          `UPDATE agenda_events SET start_time = ?, end_time = ? WHERE id = ?`,
+          [toSqlDateTime(newStart), toSqlDateTime(newEnd), row.id]
+        );
+      }
+    } else {
+      return res.status(400).json({ error: "Ação em lote desconhecida" });
+    }
+
+    const placeholders = ids.map(() => "?").join(", ");
+    const [updated]: any = await pool.query(`SELECT * FROM agenda_events WHERE id IN (${placeholders})`, ids);
+    res.json({ events: updated, updated_count: updated.length });
+  } catch (err: any) {
+    console.error("[Agenda] Falha na ação em lote:", err.message);
+    res.status(400).json({ error: "Falha ao aplicar ação em lote" });
   }
 });
 

@@ -1,5 +1,5 @@
 import React from 'react';
-import { CalendarX2, Clock, Link2, MapPin, Video } from 'lucide-react';
+import { CalendarX2, CheckSquare, Link2, MapPin, Video } from 'lucide-react';
 import { AgendaPlannerEvent } from './AgendaPlanner';
 import { AGENDA_STATUS_COLORS, AGENDA_TYPE_COLORS, hexToRgba } from './agendaColors';
 
@@ -24,9 +24,18 @@ export interface AgendaListViewProps {
   events: AgendaPlannerEvent[];
   onEventClick?: (event: AgendaPlannerEvent) => void;
   stickyTop?: number;
+  /** Multi-select mode: renders a checkbox on each row instead of opening it on click. */
+  isSelecting?: boolean;
+  selectedIds?: Set<string>;
 }
 
-export const AgendaListView: React.FC<AgendaListViewProps> = ({ events, onEventClick, stickyTop = 0 }) => {
+export const AgendaListView: React.FC<AgendaListViewProps> = ({
+  events,
+  onEventClick,
+  stickyTop = 0,
+  isSelecting = false,
+  selectedIds,
+}) => {
   const groups = React.useMemo(() => {
     const sorted = [...events].sort((a, b) => toDate(a.start).getTime() - toDate(b.start).getTime());
     const map = new Map<string, { day: Date; items: AgendaPlannerEvent[] }>();
@@ -73,13 +82,26 @@ export const AgendaListView: React.FC<AgendaListViewProps> = ({ events, onEventC
               const accent = ev.type === 'bloqueio' || ev.type === 'pessoal' ? typeColor : statusColor;
               const start = toDate(ev.start);
               const end = toDate(ev.end);
+              const isRowSelected = isSelecting && !!selectedIds?.has(String(ev.id));
               return (
                 <button
                   key={ev.id}
                   onClick={() => onEventClick?.(ev)}
-                  className="flex w-full items-center gap-3 rounded-2xl border border-l-4 border-slate-200 bg-white px-4 py-3 text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
+                  className={`flex w-full items-center gap-3 rounded-2xl border border-l-4 bg-white px-4 py-3 text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow-md ${
+                    isRowSelected ? 'border-indigo-500 ring-2 ring-indigo-200' : 'border-slate-200'
+                  }`}
                   style={{ borderLeftColor: accent }}
                 >
+                  {isSelecting && (
+                    <div
+                      className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-[5px] border-2 ${
+                        isRowSelected ? 'bg-indigo-600 border-indigo-600' : 'bg-white border-slate-300'
+                      }`}
+                    >
+                      {isRowSelected && <CheckSquare size={13} className="text-white" strokeWidth={3} />}
+                    </div>
+                  )}
+
                   <div className="flex w-16 shrink-0 flex-col items-start tabular-nums">
                     <span className="text-sm font-black text-slate-800">
                       {start.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}

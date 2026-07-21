@@ -3,8 +3,7 @@ import { Calendar, Clock, FileCheck2, Trash2, X, Link2, FileText, MessageCircle,
 import { Modal, ModalFooter } from './Modal';
 import { Button, IconButton } from './Button';
 import { Combobox } from './Combobox';
-import { Select, Input, Textarea } from './Input';
-import { DatePicker } from './DatePicker';
+import { AgendaEventFields, AgendaEventFieldsValue } from './AgendaEventFields';
 import { AgendaEvent, Insurance, Patient, Service, SystemUser } from '../../types';
 import type { AgendaEventScope } from '../../hooks/useAgendaEvents';
 
@@ -14,8 +13,6 @@ const STATUS_META: Record<AgendaEvent['status'], { label: string; dot: string }>
   realizado: { label: 'Realizado', dot: 'bg-indigo-500' },
   cancelado: { label: 'Cancelado', dot: 'bg-rose-500' },
 };
-
-const TIPO_OPTIONS: AgendaEvent['tipo'][] = ['Sessão', 'Avaliação', 'Reunião', 'Visita Escolar', 'Retorno'];
 
 function formatDateLabel(iso: string) {
   const d = new Date(iso);
@@ -60,7 +57,7 @@ export interface AgendaEventModalProps {
   allEvents: AgendaEvent[];
   canEdit: boolean;
   canDelete: boolean;
-  onSave: (id: string, payload: Partial<AgendaEvent>, scope?: AgendaEventScope) => Promise<void>;
+  onSave: (id: string, payload: Partial<AgendaEvent>, scope?: AgendaEventScope, force?: boolean) => Promise<void>;
   onDelete: (id: string, scope?: AgendaEventScope) => Promise<void>;
   onNavigateToPatient?: (patientId: string) => void;
 }
@@ -85,15 +82,16 @@ export const AgendaEventModal: React.FC<AgendaEventModalProps> = ({
   const [isEditing, setIsEditing] = useState(false);
   const [saving, setSaving] = useState(false);
   const [pendingAction, setPendingAction] = useState<PendingAction>(null);
+  const [conflict, setConflict] = useState<{
+    action: PendingAction;
+    scope: AgendaEventScope;
+    conflict: { id: string; title: string; start_time: string; end_time: string };
+  } | null>(null);
 
-  const [editDate, setEditDate] = useState('');
-  const [editStart, setEditStart] = useState('');
-  const [editEnd, setEditEnd] = useState('');
-  const [editTipo, setEditTipo] = useState<AgendaEvent['tipo']>('Sessão');
-  const [editModality, setEditModality] = useState<AgendaEvent['modality']>('presencial');
-  const [editServiceId, setEditServiceId] = useState('');
-  const [editProfessionalId, setEditProfessionalId] = useState('');
-  const [editAlertas, setEditAlertas] = useState('');
+  const [editFields, setEditFields] = useState<AgendaEventFieldsValue | null>(null);
+  const handleEditFieldsChange = (patch: Partial<AgendaEventFieldsValue>) => {
+    setEditFields((prev) => (prev ? { ...prev, ...patch } : prev));
+  };
 
   const patient = useMemo(
     () => patients.find((p) => p.id === event?.patientId),
@@ -126,21 +124,32 @@ export const AgendaEventModal: React.FC<AgendaEventModalProps> = ({
 
   useEffect(() => {
     if (event && isEditing) {
-      setEditDate(toDateInput(event.start));
-      setEditStart(toTimeInput(event.start));
-      setEditEnd(toTimeInput(event.end));
-      setEditTipo(event.tipo);
-      setEditModality(event.modality);
-      setEditServiceId(event.serviceId || '');
-      setEditProfessionalId(event.professionalId || '');
-      setEditAlertas(event.alertas || '');
+      setEditFields({
+        type: event.type,
+        patientId: event.patientId || '',
+        freeTitle: event.type !== 'consulta' ? event.title : '',
+        serviceId: event.serviceId || '',
+        modality: event.modality,
+        professionalId: event.professionalId || '',
+        status: event.status,
+        date: toDateInput(event.start),
+        startTime: toTimeInput(event.start),
+        endTime: toTimeInput(event.end),
+        tipo: event.tipo,
+        alertas: event.alertas || '',
+      });
     }
   }, [event, isEditing]);
 
   if (!event) return null;
 
   const statusMeta = STATUS_META[event.status];
-  const isPartOfSeries = !!event.recurrenceGroupId;
+  // A recurrence_group_id alone isn't enough — every event (even a one-off "Não
+  // repete") gets one. Only treat it as a real series when other rows actually
+  // share that group; otherwise the scope-confirmation modal would show up for
+  // ordinary single events, asking to choose between "only" and "0 future
+  // sessions" for no reason.
+  const isPartOfSeries = !!event.recurrenceGroupId && seriesSiblings.length > 0;
   const waHref = whatsappHref(patient?.telefone);
 
   // For actions affecting a recurring series, ask whether to apply to only this
@@ -153,20 +162,27 @@ export const AgendaEventModal: React.FC<AgendaEventModalProps> = ({
     setPendingAction(action);
   };
 
-  const runAction = async (action: PendingAction, scope: AgendaEventScope) => {
+  const runAction = async (action: PendingAction, scope: AgendaEventScope, force?: boolean) => {
     if (!action) return;
     setSaving(true);
     try {
       if (action.kind === 'save') {
-        await onSave(event.id, action.payload, scope);
+        await onSave(event.id, action.payload, scope, force);
+        setConflict(null);
         setIsEditing(false);
       } else {
         await onDelete(event.id, scope);
         onClose();
       }
+      setPendingAction(null);
+    } catch (err: any) {
+      if (err.name === 'AgendaConflictError' && action.kind === 'save') {
+        setConflict({ action, scope, conflict: err.conflict });
+      } else {
+        throw err;
+      }
     } finally {
       setSaving(false);
-      setPendingAction(null);
     }
   };
 
@@ -189,16 +205,22 @@ export const AgendaEventModal: React.FC<AgendaEventModalProps> = ({
   };
 
   const handleSaveEdit = () => {
+    if (!editFields) return;
+    const isConsulta = editFields.type === 'consulta';
+    const patient = patients.find((p) => p.id === editFields.patientId);
     runOrAskScope({
       kind: 'save',
       payload: {
-        start: combineToIso(editDate, editStart),
-        end: combineToIso(editDate, editEnd),
-        tipo: editTipo,
-        modality: editModality,
-        serviceId: editServiceId || undefined,
-        professionalId: editProfessionalId || undefined,
-        alertas: editAlertas || undefined,
+        title: isConsulta ? patient?.nome || event!.title : editFields.freeTitle,
+        patientId: isConsulta ? editFields.patientId || undefined : undefined,
+        start: combineToIso(editFields.date, editFields.startTime),
+        end: combineToIso(editFields.date, editFields.endTime),
+        tipo: editFields.tipo,
+        status: editFields.status,
+        modality: editFields.modality,
+        serviceId: isConsulta ? editFields.serviceId || undefined : undefined,
+        professionalId: editFields.professionalId || undefined,
+        alertas: editFields.alertas || undefined,
       },
     });
   };
@@ -245,70 +267,33 @@ export const AgendaEventModal: React.FC<AgendaEventModalProps> = ({
     </Modal>
   );
 
-  if (isEditing) {
+  const conflictModal = conflict && (
+    <Modal isOpen onClose={() => setConflict(null)} title="Conflito de horário" size="xs">
+      <p className="text-sm text-slate-600 mb-4">
+        Já existe um agendamento (<strong>{conflict.conflict.title}</strong>) para este profissional entre{' '}
+        {new Date(conflict.conflict.start_time).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })} e{' '}
+        {new Date(conflict.conflict.end_time).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}. Deseja salvar mesmo assim?
+      </p>
+      <ModalFooter>
+        <Button variant="outline" onClick={() => setConflict(null)}>Voltar</Button>
+        <Button variant="primary" loading={saving} onClick={() => runAction(conflict.action, conflict.scope, true)}>
+          Salvar mesmo assim
+        </Button>
+      </ModalFooter>
+    </Modal>
+  );
+
+  if (isEditing && editFields) {
     return (
-      <Modal isOpen={isOpen} onClose={() => setIsEditing(false)} title="Editar agendamento" size="lg">
-        <div className="space-y-5">
-          <DatePicker value={editDate} onChange={(v) => v && setEditDate(v)} label="Data" />
-          <div className="grid grid-cols-2 gap-3">
-            <Input type="time" label="Início" value={editStart} onChange={(e) => setEditStart(e.target.value)} />
-            <Input type="time" label="Término" value={editEnd} onChange={(e) => setEditEnd(e.target.value)} />
-          </div>
-
-          {event.type === 'consulta' && (
-            <>
-              <Select
-                label="Tipo de atendimento"
-                value={editTipo}
-                onChange={(e) => setEditTipo(e.target.value as AgendaEvent['tipo'])}
-                options={TIPO_OPTIONS.map((t) => ({ value: t, label: t }))}
-              />
-              <Combobox
-                size="sm"
-                placeholder="Serviço ou pacote"
-                options={services.filter((s) => s.active).map((s) => ({ value: s.id, label: s.name }))}
-                value={editServiceId}
-                onChange={(v) => setEditServiceId(v as string)}
-              />
-              <div className="grid grid-cols-2 gap-2">
-                <button
-                  type="button"
-                  onClick={() => setEditModality('presencial')}
-                  className={`rounded-xl border py-2 text-xs font-bold transition ${
-                    editModality === 'presencial' ? 'border-slate-800 bg-slate-800 text-white' : 'border-slate-200 text-slate-500'
-                  }`}
-                >
-                  Presencial
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setEditModality('online')}
-                  className={`rounded-xl border py-2 text-xs font-bold transition ${
-                    editModality === 'online' ? 'border-cyan-600 bg-cyan-600 text-white' : 'border-slate-200 text-slate-500'
-                  }`}
-                >
-                  Online
-                </button>
-              </div>
-              {professionals.length > 1 && (
-                <Combobox
-                  size="sm"
-                  placeholder="Profissional responsável"
-                  options={professionals.map((p) => ({ value: p.id, label: p.name }))}
-                  value={editProfessionalId}
-                  onChange={(v) => setEditProfessionalId(v as string)}
-                />
-              )}
-            </>
-          )}
-
-          <Textarea
-            label="Observações"
-            value={editAlertas}
-            onChange={(e) => setEditAlertas(e.target.value)}
-            rows={3}
-          />
-        </div>
+      <Modal isOpen={isOpen} onClose={() => setIsEditing(false)} title="Editar agendamento" size="xl">
+        <AgendaEventFields
+          value={editFields}
+          onChange={handleEditFieldsChange}
+          patients={patients}
+          services={services}
+          professionals={professionals}
+          hideTypeSelector
+        />
 
         <ModalFooter className="mt-6">
           <Button variant="outline" onClick={() => setIsEditing(false)}>Cancelar</Button>
@@ -316,6 +301,7 @@ export const AgendaEventModal: React.FC<AgendaEventModalProps> = ({
         </ModalFooter>
 
         {scopeModal}
+        {conflictModal}
       </Modal>
     );
   }
@@ -489,6 +475,7 @@ export const AgendaEventModal: React.FC<AgendaEventModalProps> = ({
       </ModalFooter>
 
       {scopeModal}
+      {conflictModal}
     </Modal>
   );
 };
