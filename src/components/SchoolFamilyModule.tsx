@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import { Sparkles, Save, BookOpen, UserCheck, CheckSquare, RefreshCw, Star, Heart, Check } from "lucide-react";
 import { Patient, UserRole, UserPermissions } from "../types";
 import { useTimeline } from "../hooks/useTimeline";
+import { useClinicSettings } from "../hooks/useClinicSettings";
 import { useToast } from "./UI";
 
 interface SchoolFamilyModuleProps {
@@ -12,6 +13,7 @@ interface SchoolFamilyModuleProps {
 
 export default function SchoolFamilyModule({ patients, userRole, userPermissions }: SchoolFamilyModuleProps) {
   const toast = useToast();
+  const { settings: clinic } = useClinicSettings();
   const canCreate = userPermissions ? userPermissions.schoolFamily.criar : (userRole !== UserRole.RESTRICTED);
   const canEdit = userPermissions ? userPermissions.schoolFamily.editar : (userRole !== UserRole.RESTRICTED);
 
@@ -58,13 +60,13 @@ Visando dar continuidade às estratégias comportamentais (ABA) e de regulação
 - Promovam momentos de brincadeira compartilhada com troca de turnos ("Minha vez, agora sua vez") por pelo menos 15 minutos diários.
 - Se o paciente demonstrar agitação psicomotora alta, façam uma pausa tátil: brinquem de amassar massinha de modelar, espremer bolinhas texturizadas ou bacia de arroz sensorial por 10 minutos para autorregulação proprioceptiva.
 
-Clínica Espaço Aprender a Ser • Tatui-SP
+Clínica ${clinic?.name || "Espaço Aprender a Ser"}${clinic?.address ? ` • ${clinic.address}` : ""}
 Diretora Técnica: Francine Maria Tersi`);
   };
 
   useEffect(() => {
     compileGuideline();
-  }, [selectedPatId]);
+  }, [selectedPatId, clinic]);
 
   const handleGenerateHomeGuideline = () => {
     setIsGenerating(true);

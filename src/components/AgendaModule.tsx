@@ -1,10 +1,11 @@
 import React, { useLayoutEffect, useMemo, useRef, useState } from "react";
-import { ChevronLeft, ChevronRight, Plus, CalendarRange, UserCheck, CalendarClock, LayoutGrid, List, CalendarDays, CheckSquare, X, Zap } from "lucide-react";
+import { ChevronLeft, ChevronRight, Plus, CalendarRange, UserCheck, CalendarClock, LayoutGrid, List, CalendarDays, CheckSquare, X, Zap, Download } from "lucide-react";
 import { Patient, UserRole, UserPermissions, AgendaEvent } from "../types";
 import { useAgendaEvents, AgendaEventScope, BulkAgendaAction } from "../hooks/useAgendaEvents";
 import { useInsurances } from "../hooks/useInsurances";
 import { useServices } from "../hooks/useServices";
 import { useUsers } from "../hooks/useUsers";
+import { useClinicSettings } from "../hooks/useClinicSettings";
 import {
   IconButton,
   Button,
@@ -55,6 +56,19 @@ function startOfWeek(date: Date) {
   return d;
 }
 
+function addDays(date: Date, days: number) {
+  const d = new Date(date);
+  d.setDate(d.getDate() + days);
+  return d;
+}
+
+const WEEKDAY_LABELS = ["Segunda", "Terça", "Quarta", "Quinta", "Sexta"];
+const MONTH_WEEKDAY_LABELS = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
+
+function escapeHtml(value: string) {
+  return value.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
+
 export default function AgendaModule({ patients, userRole, userPermissions, onNavigateToPatient }: AgendaModuleProps) {
   const canCreate = userPermissions ? userPermissions.agenda.criar : userRole !== UserRole.RESTRICTED;
   const canEdit = userPermissions ? userPermissions.agenda.editar : userRole !== UserRole.RESTRICTED;
@@ -64,6 +78,7 @@ export default function AgendaModule({ patients, userRole, userPermissions, onNa
   const { insurances } = useInsurances();
   const { services } = useServices();
   const { users } = useUsers();
+  const { settings: clinic } = useClinicSettings();
   const professionals = useMemo(
     () => users.filter((u) => u.role === UserRole.PROFESSIONAL || u.role === UserRole.ADMIN),
     [users]
@@ -209,6 +224,118 @@ export default function AgendaModule({ patients, userRole, userPermissions, onNa
     setSelectedEvent((prev) => (prev && prev.id === id ? { ...prev, ...payload } : prev));
   };
 
+  // Prints a standalone HTML document (browser "Salvar como PDF") for the
+  // currently visible range — week export is Monday-Friday only (the on-screen
+  // grid keeps showing Sun-Sat; this only affects what gets exported), month
+  // export covers every day of the month.
+  const handleExportPdf = () => {
+    if (view !== "week" && view !== "month") return;
+
+    const clinicName = clinic?.name || "Espaço Aprender a Ser";
+    const clinicContactLine = [clinic?.address, clinic?.phone, clinic?.email].filter(Boolean).join(" • ");
+
+    const eventLabel = (ev: AgendaEvent) => {
+      const patient = patients.find((p) => p.id === ev.patientId);
+      const time = new Date(ev.start).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
+      const title = ev.type === "consulta" ? patient?.nome || ev.title : ev.title;
+      return `${time} — ${escapeHtml(title || "")}`;
+    };
+
+    let rangeLabel = "";
+    let columnsHtml = "";
+
+    if (view === "week") {
+      const weekStart = startOfWeek(currentDate);
+      const monday = addDays(weekStart, 1);
+      const friday = addDays(weekStart, 5);
+      rangeLabel = `${monday.toLocaleDateString("pt-BR")} a ${friday.toLocaleDateString("pt-BR")}`;
+
+      const days = Array.from({ length: 5 }, (_, i) => addDays(monday, i));
+      columnsHtml = days
+        .map((day, i) => {
+          const dayEvents = events
+            .filter((ev) => isSameDay(new Date(ev.start), day))
+            .sort((a, b) => new Date(a.start).getTime() - new Date(b.start).getTime());
+          const itemsHtml = dayEvents.length
+            ? dayEvents.map((ev) => `<div class="event">${eventLabel(ev)}</div>`).join("")
+            : `<div class="empty">Sem agendamentos</div>`;
+          return `
+            <div class="day-col">
+              <div class="day-head">${WEEKDAY_LABELS[i]}<span>${day.toLocaleDateString("pt-BR")}</span></div>
+              ${itemsHtml}
+            </div>`;
+        })
+        .join("");
+    } else {
+      const year = currentDate.getFullYear();
+      const month = currentDate.getMonth();
+      const firstOfMonth = new Date(year, month, 1);
+      const lastOfMonth = new Date(year, month + 1, 0);
+      rangeLabel = firstOfMonth.toLocaleDateString("pt-BR", { month: "long", year: "numeric" });
+
+      const gridStart = addDays(firstOfMonth, -firstOfMonth.getDay());
+      const totalCells = Math.ceil((lastOfMonth.getDate() + firstOfMonth.getDay()) / 7) * 7;
+      const cellsHtml = Array.from({ length: totalCells }, (_, i) => addDays(gridStart, i))
+        .map((day) => {
+          const inMonth = day.getMonth() === month;
+          const dayEvents = events
+            .filter((ev) => isSameDay(new Date(ev.start), day))
+            .sort((a, b) => new Date(a.start).getTime() - new Date(b.start).getTime());
+          const itemsHtml = dayEvents.map((ev) => `<div class="event">${eventLabel(ev)}</div>`).join("");
+          return `
+            <div class="month-cell${inMonth ? "" : " outside"}">
+              <div class="month-day-num">${day.getDate()}</div>
+              ${itemsHtml}
+            </div>`;
+        })
+        .join("");
+      columnsHtml = `
+        <div class="month-grid">
+          ${MONTH_WEEKDAY_LABELS.map((l) => `<div class="month-weekday">${l}</div>`).join("")}
+          ${cellsHtml}
+        </div>`;
+    }
+
+    const printWindow = window.open("", "_blank");
+    if (!printWindow) return;
+    printWindow.document.write(`
+      <html>
+        <head>
+          <title>Agenda - ${escapeHtml(clinicName)}</title>
+          <style>
+            body { font-family: 'Inter', sans-serif; color: #1e293b; padding: 32px; }
+            .header { text-align: center; border-bottom: 2px solid #f1f5f9; padding-bottom: 20px; margin-bottom: 24px; }
+            .header h1 { font-size: 22px; margin: 0; color: #1070ca; font-weight: 800; }
+            .header p { font-size: 11px; margin: 4px 0 0; color: #64748b; }
+            .range { text-align: center; font-size: 13px; font-weight: 700; text-transform: capitalize; margin-bottom: 18px; }
+            .week-grid { display: flex; gap: 8px; }
+            .day-col { flex: 1; min-width: 0; border: 1px solid #e2e8f0; border-radius: 10px; padding: 8px; }
+            .day-head { font-size: 11px; font-weight: 800; text-transform: uppercase; border-bottom: 1px solid #f1f5f9; padding-bottom: 6px; margin-bottom: 6px; }
+            .day-head span { display: block; font-weight: 500; color: #94a3b8; text-transform: none; }
+            .event { font-size: 10px; padding: 4px 6px; border-radius: 6px; background: #eef2ff; color: #312e81; margin-bottom: 4px; word-break: break-word; }
+            .empty { font-size: 10px; color: #cbd5e1; font-style: italic; }
+            .month-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; }
+            .month-weekday { font-size: 10px; font-weight: 800; text-transform: uppercase; text-align: center; color: #94a3b8; padding-bottom: 4px; }
+            .month-cell { border: 1px solid #e2e8f0; border-radius: 8px; padding: 4px; min-height: 70px; }
+            .month-cell.outside { opacity: 0.35; }
+            .month-day-num { font-size: 10px; font-weight: 800; margin-bottom: 3px; }
+            @media print { body { padding: 0; } }
+          </style>
+        </head>
+        <body>
+          <div class="header">
+            <h1>${escapeHtml(clinicName)}</h1>
+            ${clinicContactLine ? `<p>${escapeHtml(clinicContactLine)}</p>` : ""}
+          </div>
+          <div class="range">${escapeHtml(rangeLabel)}</div>
+          <div class="${view === "week" ? "week-grid" : ""}">${columnsHtml}</div>
+        </body>
+      </html>
+    `);
+    printWindow.document.close();
+    printWindow.print();
+  };
+
   return (
     <div className="space-y-2">
       <div
@@ -283,6 +410,17 @@ export default function AgendaModule({ patients, userRole, userPermissions, onNa
                 </button>
               ))}
             </div>
+
+            {(view === "week" || view === "month") && (
+              <button
+                onClick={handleExportPdf}
+                className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all border bg-white border-zinc-200 text-zinc-500 hover:border-indigo-300"
+                title={view === "week" ? "Exportar PDF (segunda a sexta)" : "Exportar PDF do mês"}
+              >
+                <Download size={13} />
+                <span className="hidden sm:inline">Exportar</span>
+              </button>
+            )}
 
             {(canEdit || canDelete) && (
               <button

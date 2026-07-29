@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import { Printer, Save, RefreshCw, Sparkles, Layers, Info, FileText } from "lucide-react";
 import { Patient, UserRole, UserPermissions } from "../types";
 import { Combobox, ConfirmModal, useToast } from "./UI";
+import { useClinicSettings } from "../hooks/useClinicSettings";
 
 interface Report {
   id: string;
@@ -26,6 +27,7 @@ const REPORT_TYPES = [
 
 export default function ReportGeneration({ patients, userRole, userPermissions }: ReportProps) {
   const toast = useToast();
+  const { settings: clinic } = useClinicSettings();
   const canCreate = userPermissions ? userPermissions.reports.criar : (userRole !== UserRole.RESTRICTED);
 
   const [selectedPatId, setSelectedPatId] = useState<string>(patients[0]?.id || "");
@@ -92,14 +94,15 @@ export default function ReportGeneration({ patients, userRole, userPermissions }
       body += `\n\n4. OBSERVAÇÕES ADICIONAIS DO CASO:\n   ${additionalNotes}`;
     }
 
-    const signOff = `\n\nEste parecer foi compilado sob rigoroso padrão ético e técnico multidisciplinar.\n\nAtenciosamente,\n\nFrancine Maria Tersi\nPsicopedagoga, Neuropsicopedagoga e Terapeuta ABA\nEspaço Aprender a Ser - Clínica Integrada\nTatuí - SP`;
+    const clinicName = clinic?.name || "Espaço Aprender a Ser";
+    const signOff = `\n\nEste parecer foi compilado sob rigoroso padrão ético e técnico multidisciplinar.\n\nAtenciosamente,\n\nFrancine Maria Tersi\nPsicopedagoga, Neuropsicopedagoga e Terapeuta ABA\n${clinicName} - Clínica Integrada${clinic?.address ? `\n${clinic.address}` : ""}`;
 
     setGeneratedContent(`${docTitle}\n\n${intro}\n\n${body}${signOff}`);
   };
 
   useEffect(() => {
     compileReport();
-  }, [selectedPatId, reportType, focosAtencao, adaptacoesRecomendadas, condutasPropostas, additionalNotes]);
+  }, [selectedPatId, reportType, focosAtencao, adaptacoesRecomendadas, condutasPropostas, additionalNotes, clinic]);
 
   const handleGenerateReportInstant = () => {
     if (!selectedPat) {
@@ -137,10 +140,12 @@ export default function ReportGeneration({ patients, userRole, userPermissions }
       toast.error("Não foi possível abrir a janela de impressão. Verifique o bloqueador de pop-ups.");
       return;
     }
+    const clinicName = clinic?.name || "Espaço Aprender a Ser";
+    const clinicContactLine = [clinic?.address, clinic?.phone, clinic?.email].filter(Boolean).join(" • ");
     printWindow.document.write(`
         <html>
           <head>
-            <title>Relatório Clínico - Espaço Aprender a Ser</title>
+            <title>Relatório Clínico - ${clinicName}</title>
             <style>
               body { font-family: 'Inter', sans-serif; color: #1e293b; padding: 45px; line-height: 1.6; }
               .header { text-align: center; border-bottom: 2px solid #f1f5f9; padding-bottom: 25px; margin-bottom: 35px; }
@@ -154,9 +159,9 @@ export default function ReportGeneration({ patients, userRole, userPermissions }
           </head>
           <body>
             <div class="header">
-              <h1>Espaço Aprender a Ser</h1>
+              <h1>${clinicName}</h1>
               <p>Clínica Multidisciplinar Integrada • Psicopedagogia e Intervenção ABA</p>
-              <p style="font-size: 9px; color: #94a3b8; font-weight: normal; margin-top: 4px;">Diretora: Francine Maria Tersi</p>
+              ${clinicContactLine ? `<p style="font-size: 9px; color: #94a3b8; font-weight: normal; margin-top: 4px; text-transform: none; letter-spacing: normal;">${clinicContactLine}</p>` : ""}
             </div>
             <div class="content">${generatedContent}</div>
             <div class="footer">
@@ -394,7 +399,7 @@ export default function ReportGeneration({ patients, userRole, userPermissions }
             <div className="space-y-6">
               <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-3 border-b border-slate-100 pb-4">
                 <div>
-                  <h4 className="font-display font-black text-slate-900 text-sm">Espaço Aprender a Ser</h4>
+                  <h4 className="font-display font-black text-slate-900 text-sm">{clinic?.name || "Espaço Aprender a Ser"}</h4>
                   <p className="text-[10px] text-slate-400 font-mono tracking-widest uppercase">Papel Timbrado Oficial de Prontuário</p>
                 </div>
                 {generatedContent && (
@@ -435,7 +440,9 @@ export default function ReportGeneration({ patients, userRole, userPermissions }
                     <div className="h-px bg-slate-200 w-full mb-1.5" />
                     <p className="text-xs font-black text-slate-900">Francine Maria Tersi</p>
                     <p className="text-[10px] text-slate-500 font-semibold">Psicopedagoga, Neuropsicopedagoga e Terapeuta ABA</p>
-                    <p className="text-[9px] text-[#ebb448] font-mono font-black uppercase">Clínica Multidisciplinar Integrada • Tatuí-SP</p>
+                    <p className="text-[9px] text-[#ebb448] font-mono font-black uppercase">
+                      Clínica Multidisciplinar Integrada{clinic?.address ? ` • ${clinic.address}` : ""}
+                    </p>
                   </div>
                 </div>
               ) : (

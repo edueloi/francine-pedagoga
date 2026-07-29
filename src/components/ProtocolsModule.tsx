@@ -25,6 +25,7 @@ import {
 } from "lucide-react";
 import { Patient, Protocol, ProtocolType, UserRole, UserPermissions } from "../types";
 import { useProtocols } from "../hooks/useProtocols";
+import { useClinicSettings } from "../hooks/useClinicSettings";
 import { useToast, ConfirmModal } from "./UI";
 
 interface ProtocolsModuleProps {
@@ -35,6 +36,7 @@ interface ProtocolsModuleProps {
 
 export default function ProtocolsModule({ patients, userRole, userPermissions }: ProtocolsModuleProps) {
   const toast = useToast();
+  const { settings: clinic } = useClinicSettings();
   const canCreate = userPermissions ? userPermissions.protocols.criar : (userRole !== UserRole.RESTRICTED);
   const canDelete = userPermissions ? userPermissions.protocols.excluir : (userRole === UserRole.ADMIN);
 
@@ -205,11 +207,19 @@ export default function ProtocolsModule({ patients, userRole, userPermissions }:
             {/* Print Header */}
             <div className="text-center space-y-2 border-b border-slate-200 pb-6 mb-6">
               <div className="flex items-center justify-center gap-2">
-                <Heart className="h-6 w-6 text-[#1070ca] fill-[#1070ca]/10" />
-                <h2 className="font-display font-black text-2xl text-slate-900">Espaço Aprender a Ser</h2>
+                {clinic?.logoUrl ? (
+                  <img src={clinic.logoUrl} alt="" className="h-8 w-8 object-contain rounded-lg" />
+                ) : (
+                  <Heart className="h-6 w-6 text-[#1070ca] fill-[#1070ca]/10" />
+                )}
+                <h2 className="font-display font-black text-2xl text-slate-900">{clinic?.name || "Clínica"}</h2>
               </div>
-              <p className="text-xs text-slate-500 font-bold uppercase tracking-wider">Centro Avançado de Desenvolvimento Infantil & Análise do Comportamento (ABA)</p>
-              <p className="text-[10px] text-slate-400 font-mono tracking-widest">AV. PAULISTA, 1000 - SÃO PAULO/SP | CONTATO@APRENDERASER.COM.BR</p>
+              {clinic?.activities && (
+                <p className="text-xs text-slate-500 font-bold uppercase tracking-wider">{clinic.activities}</p>
+              )}
+              <p className="text-[10px] text-slate-400 font-mono tracking-widest">
+                {[clinic?.address, clinic?.email].filter(Boolean).join(" | ").toUpperCase()}
+              </p>
             </div>
 
             {/* Protocol Identity Card */}
@@ -269,9 +279,9 @@ export default function ProtocolsModule({ patients, userRole, userPermissions }:
             {/* Signature Area */}
             <div className="mt-20 text-center border-t border-slate-200 pt-8 max-w-sm mx-auto space-y-1">
               <p className="text-xs font-black text-slate-800">{activeProto.profissional}</p>
-              <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider font-mono">Coordenação Clínica • Reg. 1290-SP</p>
+              <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider font-mono">Coordenação Clínica</p>
               <div className="text-[9px] text-[#1070ca] font-black italic mt-1 bg-blue-50/50 py-1 px-3 rounded-lg border border-blue-100 inline-block">
-                Assinado eletronicamente via Prontuário Aprender a Ser
+                Assinado eletronicamente via Prontuário {clinic?.name || ""}
               </div>
             </div>
           </div>
