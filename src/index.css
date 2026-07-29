@@ -75,11 +75,24 @@
 
 /* Print Styling for Clinical Reports and Protocols */
 @media print {
+  /* Preserve colored badges/backgrounds (e.g. the blue "REGISTRO OFICIAL" pill,
+     the soft section backgrounds) instead of letting the browser strip them to
+     black & white by default — this used to force `color: black`/no background
+     on everything, which flattened every printed protocol/report to plain text. */
+  * {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
   body {
-    background: white !important;
-    color: black !important;
+    background: white;
   }
   .no-print {
+    display: none !important;
+  }
+  /* Sidebar and Topbar are fixed/sticky, so they'd otherwise render alongside the
+     printable overlay (a plain Ctrl+P ignores position/z-index, printing every
+     element in DOM flow) — hide the app chrome, leaving only the print overlay. */
+  aside, header {
     display: none !important;
   }
   .print-page {

@@ -23,6 +23,7 @@ import {
   Clock,
   ClipboardList
 } from "lucide-react";
+import jsPDF from "jspdf";
 import { Patient, Protocol, ProtocolType, UserRole, UserPermissions } from "../types";
 import { useProtocols } from "../hooks/useProtocols";
 import { useClinicSettings } from "../hooks/useClinicSettings";
@@ -151,8 +152,165 @@ export default function ProtocolsModule({ patients, userRole, userPermissions }:
     }
   };
 
-  const handleTriggerPrint = () => {
-    window.print();
+  // Builds a real PDF file (not a browser print/screenshot) so the document is
+  // laid out on its own terms — consistent margins/pagination regardless of the
+  // viewer's browser/OS print dialog, and downloadable without any "print" step.
+  const handleDownloadPdf = () => {
+    if (!activeProto) return;
+    const patient = patients.find((p) => p.id === activeProto.patientId);
+
+    const doc = new jsPDF({ unit: "mm", format: "a4" });
+    const pageWidth = doc.internal.pageSize.getWidth();
+    const pageHeight = doc.internal.pageSize.getHeight();
+    const marginX = 18;
+    const contentWidth = pageWidth - marginX * 2;
+    let y = 20;
+
+    const ensureSpace = (needed: number) => {
+      if (y + needed > pageHeight - 20) {
+        doc.addPage();
+        y = 20;
+      }
+    };
+
+    const clinicName = clinic?.name || "Clínica";
+
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(16);
+    doc.setTextColor(15, 23, 42);
+    doc.text(clinicName, pageWidth / 2, y, { align: "center" });
+    y += 6;
+
+    if (clinic?.activities) {
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(8);
+      doc.setTextColor(100, 116, 139);
+      doc.text(clinic.activities.toUpperCase(), pageWidth / 2, y, { align: "center" });
+      y += 5;
+    }
+
+    const contactLine = [clinic?.address, clinic?.email].filter(Boolean).join(" | ");
+    if (contactLine) {
+      doc.setFont("courier", "normal");
+      doc.setFontSize(7);
+      doc.setTextColor(148, 163, 184);
+      doc.text(contactLine.toUpperCase(), pageWidth / 2, y, { align: "center" });
+      y += 5;
+    }
+
+    y += 3;
+    doc.setDrawColor(226, 232, 240);
+    doc.line(marginX, y, pageWidth - marginX, y);
+    y += 9;
+
+    // Identity card
+    doc.setFillColor(248, 250, 252);
+    doc.roundedRect(marginX, y, contentWidth, 26, 3, 3, "F");
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(12);
+    doc.setTextColor(30, 41, 59);
+    doc.text(activeProto.tipo, marginX + 5, y + 8);
+
+    doc.setFillColor(219, 234, 254);
+    const badgeText = "REGISTRO OFICIAL";
+    const badgeWidth = doc.getTextWidth(badgeText) + 6;
+    doc.roundedRect(pageWidth - marginX - badgeWidth - 5, y + 4, badgeWidth, 6, 1.5, 1.5, "F");
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(7);
+    doc.setTextColor(30, 64, 175);
+    doc.text(badgeText, pageWidth - marginX - badgeWidth - 5 + 3, y + 8);
+
+    const identityCols = [
+      { label: "PACIENTE", value: patient?.nome || "-" },
+      { label: "DATA DO REGISTRO", value: new Date(activeProto.dataPreenchimento).toLocaleDateString("pt-BR") },
+      { label: "APLICADOR CLÍNICO", value: activeProto.profissional },
+      { label: "DIAGNÓSTICO", value: patient?.diagnostico || "-" },
+    ];
+    const colWidth = contentWidth / 4;
+    identityCols.forEach((col, i) => {
+      const x = marginX + 5 + i * colWidth;
+      doc.setFont("courier", "bold");
+      doc.setFontSize(6.5);
+      doc.setTextColor(148, 163, 184);
+      doc.text(col.label, x, y + 15);
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(9);
+      doc.setTextColor(30, 41, 59);
+      const wrapped = doc.splitTextToSize(col.value, colWidth - 6);
+      doc.text(wrapped, x, y + 20);
+    });
+    y += 34;
+
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(9);
+    doc.setTextColor(15, 23, 42);
+    doc.text("CONTEÚDO ESTRUTURADO DA AVALIAÇÃO", marginX, y);
+    y += 3;
+    doc.setDrawColor(241, 245, 249);
+    doc.line(marginX, y, pageWidth - marginX, y);
+    y += 8;
+
+    Object.keys(activeProto.conteudo).forEach((key) => {
+      const label = key.replace(/_/g, " ").toUpperCase();
+      const value = String(activeProto.conteudo[key]);
+      const wrappedValue = doc.splitTextToSize(value, contentWidth - 8);
+      const blockHeight = 8 + wrappedValue.length * 4.2;
+      ensureSpace(blockHeight + 3);
+
+      doc.setFillColor(250, 250, 252);
+      doc.roundedRect(marginX, y, contentWidth, blockHeight, 2, 2, "F");
+      doc.setFont("courier", "bold");
+      doc.setFontSize(6.5);
+      doc.setTextColor(148, 163, 184);
+      doc.text(label, marginX + 4, y + 5);
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(8.5);
+      doc.setTextColor(30, 41, 59);
+      doc.text(wrappedValue, marginX + 4, y + 10);
+      y += blockHeight + 3;
+    });
+
+    if (activeProto.observacoes) {
+      const wrapped = doc.splitTextToSize(activeProto.observacoes, contentWidth - 10);
+      const blockHeight = 8 + wrapped.length * 4.2;
+      ensureSpace(blockHeight + 6);
+      y += 3;
+      doc.setFillColor(255, 251, 235);
+      doc.roundedRect(marginX, y, contentWidth, blockHeight, 2, 2, "F");
+      doc.setFont("courier", "bold");
+      doc.setFontSize(7);
+      doc.setTextColor(146, 64, 14);
+      doc.text("PARECER CLÍNICO & DIRETRIZES OPERACIONAIS ADICIONAIS", marginX + 5, y + 6);
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(8.5);
+      doc.setTextColor(51, 65, 85);
+      doc.text(wrapped, marginX + 5, y + 11);
+      y += blockHeight + 6;
+    }
+
+    ensureSpace(28);
+    y += 12;
+    doc.setDrawColor(226, 232, 240);
+    doc.line(pageWidth / 2 - 35, y, pageWidth / 2 + 35, y);
+    y += 6;
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(9);
+    doc.setTextColor(30, 41, 59);
+    doc.text(activeProto.profissional, pageWidth / 2, y, { align: "center" });
+    y += 5;
+    doc.setFont("courier", "bold");
+    doc.setFontSize(7);
+    doc.setTextColor(148, 163, 184);
+    doc.text("COORDENAÇÃO CLÍNICA", pageWidth / 2, y, { align: "center" });
+    y += 6;
+    doc.setFont("helvetica", "bolditalic");
+    doc.setFontSize(7.5);
+    doc.setTextColor(29, 78, 216);
+    doc.text(`Assinado eletronicamente via Prontuário ${clinicName}`, pageWidth / 2, y, { align: "center" });
+
+    const fileName = `${activeProto.tipo}-${patient?.nome || "paciente"}-${activeProto.dataPreenchimento}.pdf`
+      .replace(/[^a-zA-Z0-9\-_.]/g, "_");
+    doc.save(fileName);
   };
 
   // Protocols filtered by selected patient and type filter
@@ -187,14 +345,14 @@ export default function ProtocolsModule({ patients, userRole, userPermissions }:
 
       {/* Visual print mode overlay if viewing printable sheet */}
       {isViewingPrint && activeProto && (
-        <div className="fixed inset-0 z-50 bg-slate-900/80 backdrop-blur-xs overflow-y-auto p-4 sm:p-10 flex justify-center items-start">
+        <div className="fixed inset-0 z-[300] bg-slate-900/80 backdrop-blur-xs overflow-y-auto p-4 sm:p-10 flex justify-center items-start">
           <div className="w-full max-w-4xl border border-slate-200 p-8 sm:p-12 rounded-3xl shadow-2xl bg-white print-page relative mt-4 mb-10 text-left">
             <div className="absolute top-6 right-6 flex gap-2 no-print">
               <button
-                onClick={handleTriggerPrint}
+                onClick={handleDownloadPdf}
                 className="px-4 py-2 bg-[#1070ca] hover:bg-[#0b5194] text-white text-xs font-black uppercase tracking-wider rounded-xl flex items-center gap-1.5 cursor-pointer transition shadow-md"
               >
-                <Printer className="h-4 w-4" /> Imprimir / PDF
+                <Printer className="h-4 w-4" /> Baixar PDF
               </button>
               <button
                 onClick={() => setIsViewingPrint(false)}
