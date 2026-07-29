@@ -250,25 +250,39 @@ export default function ProtocolsModule({ patients, userRole, userPermissions }:
     doc.line(marginX, y, pageWidth - marginX, y);
     y += 8;
 
-    Object.keys(activeProto.conteudo).forEach((key) => {
+    // 2-column grid, matching the on-screen layout (`grid sm:grid-cols-2`) — a
+    // single column here doubled the vertical space needed and pushed the
+    // signature block onto a spurious extra page.
+    const gap = 4;
+    const colW = (contentWidth - gap) / 2;
+    const entries = Object.keys(activeProto.conteudo).map((key) => {
       const label = key.replace(/_/g, " ").toUpperCase();
       const value = String(activeProto.conteudo[key]);
-      const wrappedValue = doc.splitTextToSize(value, contentWidth - 8);
+      const wrappedValue = doc.splitTextToSize(value, colW - 8);
       const blockHeight = 8 + wrappedValue.length * 4.2;
-      ensureSpace(blockHeight + 3);
-
-      doc.setFillColor(250, 250, 252);
-      doc.roundedRect(marginX, y, contentWidth, blockHeight, 2, 2, "F");
-      doc.setFont("courier", "bold");
-      doc.setFontSize(6.5);
-      doc.setTextColor(148, 163, 184);
-      doc.text(label, marginX + 4, y + 5);
-      doc.setFont("helvetica", "bold");
-      doc.setFontSize(8.5);
-      doc.setTextColor(30, 41, 59);
-      doc.text(wrappedValue, marginX + 4, y + 10);
-      y += blockHeight + 3;
+      return { label, wrappedValue, blockHeight };
     });
+
+    for (let i = 0; i < entries.length; i += 2) {
+      const rowEntries = [entries[i], entries[i + 1]].filter(Boolean);
+      const rowHeight = Math.max(...rowEntries.map((e) => e.blockHeight));
+      ensureSpace(rowHeight + 3);
+
+      rowEntries.forEach((entry, colIdx) => {
+        const x = marginX + colIdx * (colW + gap);
+        doc.setFillColor(250, 250, 252);
+        doc.roundedRect(x, y, colW, rowHeight, 2, 2, "F");
+        doc.setFont("courier", "bold");
+        doc.setFontSize(6.5);
+        doc.setTextColor(148, 163, 184);
+        doc.text(entry.label, x + 4, y + 5);
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(8.5);
+        doc.setTextColor(30, 41, 59);
+        doc.text(entry.wrappedValue, x + 4, y + 10);
+      });
+      y += rowHeight + 3;
+    }
 
     if (activeProto.observacoes) {
       const wrapped = doc.splitTextToSize(activeProto.observacoes, contentWidth - 10);
