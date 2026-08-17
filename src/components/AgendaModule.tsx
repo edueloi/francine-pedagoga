@@ -1,5 +1,5 @@
 import React, { useLayoutEffect, useMemo, useRef, useState } from "react";
-import { ChevronLeft, ChevronRight, Plus, CalendarRange, UserCheck, CalendarClock, LayoutGrid, List, CalendarDays, CheckSquare, X, Zap, Download } from "lucide-react";
+import { ChevronLeft, ChevronRight, Plus, CalendarRange, UserCheck, CalendarClock, LayoutGrid, List, CalendarDays, CheckSquare, X, Zap, Download, Search } from "lucide-react";
 import { Patient, UserRole, UserPermissions, AgendaEvent, RecurrenceConfig } from "../types";
 import { useAgendaEvents, AgendaEventScope, BulkAgendaAction } from "../hooks/useAgendaEvents";
 import { useInsurances } from "../hooks/useInsurances";
@@ -172,8 +172,24 @@ export default function AgendaModule({ patients, userRole, userPermissions, onNa
     [events, patients, services, recurrenceIndexByEventId]
   );
 
+  const [listSearchQuery, setListSearchQuery] = useState("");
+
   const listEvents = useMemo(() => {
     if (view !== "list") return [];
+
+    // A search query looks across every agendamento (not just the visible week) so
+    // typing a patient's name jumps straight to their next/last session regardless
+    // of which week it falls in — the whole point of searching instead of scrolling.
+    const query = listSearchQuery.trim().toLowerCase();
+    if (query) {
+      return plannerEvents
+        .filter((ev) =>
+          ev.title.toLowerCase().includes(query) ||
+          (ev.serviceName || "").toLowerCase().includes(query)
+        )
+        .sort((a, b) => new Date(a.start).getTime() - new Date(b.start).getTime());
+    }
+
     const start = startOfWeek(currentDate);
     const end = new Date(start);
     end.setDate(end.getDate() + 7);
@@ -181,7 +197,7 @@ export default function AgendaModule({ patients, userRole, userPermissions, onNa
       const d = new Date(ev.start);
       return d >= start && d < end;
     });
-  }, [plannerEvents, currentDate, view]);
+  }, [plannerEvents, currentDate, view, listSearchQuery]);
 
   const stats = useMemo(() => {
     const today = new Date();
@@ -440,6 +456,35 @@ export default function AgendaModule({ patients, userRole, userPermissions, onNa
               </button>
             )}
           </div>
+
+          {view === "list" && (
+            <div className="px-4 pb-3 sm:px-5 sm:pb-3.5 -mt-1">
+              <div className="relative">
+                <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400" />
+                <input
+                  type="text"
+                  value={listSearchQuery}
+                  onChange={(e) => setListSearchQuery(e.target.value)}
+                  placeholder="Buscar paciente ou serviço em toda a agenda..."
+                  className="w-full pl-9 pr-8 py-2.5 bg-zinc-50 border border-zinc-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:bg-white text-xs font-semibold text-zinc-700 transition-all"
+                />
+                {listSearchQuery && (
+                  <button
+                    onClick={() => setListSearchQuery("")}
+                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-zinc-300 hover:text-zinc-500"
+                    aria-label="Limpar busca"
+                  >
+                    <X size={14} />
+                  </button>
+                )}
+              </div>
+              {listSearchQuery && (
+                <p className="mt-1.5 text-[10px] font-bold text-zinc-400 uppercase tracking-wide">
+                  {listEvents.length} resultado{listEvents.length === 1 ? "" : "s"} em toda a agenda — não só na semana atual
+                </p>
+              )}
+            </div>
+          )}
 
           {isSelecting && (
             <div className="flex flex-wrap items-center justify-between gap-2 px-4 py-2.5 sm:px-5 border-t border-slate-100 bg-indigo-50/40">

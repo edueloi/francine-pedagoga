@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { AgendaEvent, RecurrenceConfig } from "../types";
 import { useAuth } from "../contexts/AuthContext";
 import { agendaEventFromApi, agendaEventToApi } from "../lib/apiMappers";
+import { useAutoRefresh } from "./useAutoRefresh";
 
 export type AgendaEventScope = "only" | "future";
 
@@ -60,6 +61,11 @@ export function useAgendaEvents(filters?: { patientId?: string; status?: string 
   useEffect(() => {
     if (user) reloadEvents();
   }, [user, reloadEvents]);
+
+  // Agenda is the most collaborative screen (multiple staff booking at once) —
+  // refetch on focus/visibility + a short background poll so a new appointment
+  // made on another computer shows up without anyone needing to hit F5.
+  useAutoRefresh(reloadEvents, 20000, !!user);
 
   const createEvent = useCallback(
     async (payload: Partial<AgendaEvent>, recurrence?: RecurrenceConfig, force?: boolean) => {

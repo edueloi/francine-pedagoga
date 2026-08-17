@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { Patient } from "../types";
 import { useAuth } from "../contexts/AuthContext";
 import { patientFromApi } from "../lib/apiMappers";
+import { useAutoRefresh } from "./useAutoRefresh";
 
 export function usePatients() {
   const { authFetch, user } = useAuth();
@@ -27,6 +28,10 @@ export function usePatients() {
   useEffect(() => {
     if (user) reloadPatients();
   }, [user, reloadPatients]);
+
+  // Refetch on focus/visibility + a background poll, so a patient created or
+  // edited by a coworker on another computer shows up without hitting F5.
+  useAutoRefresh(reloadPatients, 30000, !!user);
 
   return { patients, loading, error, reloadPatients, setPatients };
 }
