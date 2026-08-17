@@ -4,7 +4,8 @@ import { Modal, ModalFooter } from './Modal';
 import { Button, IconButton } from './Button';
 import { Combobox } from './Combobox';
 import { AgendaEventFields, AgendaEventFieldsValue } from './AgendaEventFields';
-import { AgendaEvent, Insurance, Patient, Service, SystemUser } from '../../types';
+import { RecurrencePickerModal, recurrenceSummaryLabel } from './AgendaEventFormModal';
+import { AgendaEvent, Insurance, Patient, Service, SystemUser, RecurrenceConfig } from '../../types';
 import type { AgendaEventScope } from '../../hooks/useAgendaEvents';
 
 const STATUS_META: Record<AgendaEvent['status'], { label: string; dot: string }> = {
@@ -57,12 +58,21 @@ export interface AgendaEventModalProps {
   allEvents: AgendaEvent[];
   canEdit: boolean;
   canDelete: boolean;
-  onSave: (id: string, payload: Partial<AgendaEvent>, scope?: AgendaEventScope, force?: boolean) => Promise<void>;
+  onSave: (
+    id: string,
+    payload: Partial<AgendaEvent>,
+    scope?: AgendaEventScope,
+    force?: boolean,
+    recurrence?: RecurrenceConfig
+  ) => Promise<void>;
   onDelete: (id: string, scope?: AgendaEventScope) => Promise<void>;
   onNavigateToPatient?: (patientId: string) => void;
 }
 
-type PendingAction = { kind: 'save'; payload: Partial<AgendaEvent> } | { kind: 'delete' } | null;
+type PendingAction =
+  | { kind: 'save'; payload: Partial<AgendaEvent>; recurrence?: RecurrenceConfig }
+  | { kind: 'delete' }
+  | null;
 
 export const AgendaEventModal: React.FC<AgendaEventModalProps> = ({
   isOpen,
@@ -92,6 +102,12 @@ export const AgendaEventModal: React.FC<AgendaEventModalProps> = ({
   const handleEditFieldsChange = (patch: Partial<AgendaEventFieldsValue>) => {
     setEditFields((prev) => (prev ? { ...prev, ...patch } : prev));
   };
+
+  // Lets a standalone (non-series) event be turned into a recurring one from the
+  // edit form — previously recurrence could only be picked at creation time, so an
+  // existing Bloqueio/Evento Pessoal/Consulta had no way to become recurring later.
+  const [newRecurrence, setNewRecurrence] = useState<RecurrenceConfig | null>(null);
+  const [recurrenceModalOpen, setRecurrenceModalOpen] = useState(false);
 
   const patient = useMemo(
     () => patients.find((p) => p.id === event?.patientId),
@@ -138,6 +154,7 @@ export const AgendaEventModal: React.FC<AgendaEventModalProps> = ({
         tipo: event.tipo,
         alertas: event.alertas || '',
       });
+      setNewRecurrence(null);
     }
   }, [event, isEditing]);
 
@@ -167,7 +184,7 @@ export const AgendaEventModal: React.FC<AgendaEventModalProps> = ({
     setSaving(true);
     try {
       if (action.kind === 'save') {
-        await onSave(event.id, action.payload, scope, force);
+        await onSave(event.id, action.payload, scope, force, action.recurrence);
         setConflict(null);
         setIsEditing(false);
       } else {
@@ -222,6 +239,7 @@ export const AgendaEventModal: React.FC<AgendaEventModalProps> = ({
         professionalId: editFields.professionalId || undefined,
         alertas: editFields.alertas || undefined,
       },
+      recurrence: newRecurrence || undefined,
     });
   };
 
@@ -293,12 +311,35 @@ export const AgendaEventModal: React.FC<AgendaEventModalProps> = ({
           services={services}
           professionals={professionals}
           hideTypeSelector
+          // Turning an existing series' rule into a different one isn't supported
+          // yet — only offer "make this recurring" for a still-standalone event.
+          recurrenceSlot={
+            !isPartOfSeries ? (
+              <button
+                type="button"
+                onClick={() => setRecurrenceModalOpen(true)}
+                className="w-full flex items-center justify-between rounded-xl border border-slate-200 px-3 py-2.5 text-left transition hover:border-indigo-300"
+              >
+                <span className="flex items-center gap-2 text-xs font-bold text-slate-600">
+                  <Repeat size={14} className="text-indigo-500" /> Repetição Fixa
+                </span>
+                <span className="text-[11px] font-black text-indigo-600">{recurrenceSummaryLabel(newRecurrence)}</span>
+              </button>
+            ) : undefined
+          }
         />
 
         <ModalFooter className="mt-6">
           <Button variant="outline" onClick={() => setIsEditing(false)}>Cancelar</Button>
           <Button variant="primary" loading={saving} onClick={handleSaveEdit}>Salvar Alterações</Button>
         </ModalFooter>
+
+        <RecurrencePickerModal
+          isOpen={recurrenceModalOpen}
+          onClose={() => setRecurrenceModalOpen(false)}
+          value={newRecurrence}
+          onChange={setNewRecurrence}
+        />
 
         {scopeModal}
         {conflictModal}

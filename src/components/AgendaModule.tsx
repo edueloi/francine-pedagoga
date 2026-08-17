@@ -1,6 +1,6 @@
 import React, { useLayoutEffect, useMemo, useRef, useState } from "react";
 import { ChevronLeft, ChevronRight, Plus, CalendarRange, UserCheck, CalendarClock, LayoutGrid, List, CalendarDays, CheckSquare, X, Zap, Download } from "lucide-react";
-import { Patient, UserRole, UserPermissions, AgendaEvent } from "../types";
+import { Patient, UserRole, UserPermissions, AgendaEvent, RecurrenceConfig } from "../types";
 import { useAgendaEvents, AgendaEventScope, BulkAgendaAction } from "../hooks/useAgendaEvents";
 import { useInsurances } from "../hooks/useInsurances";
 import { useServices } from "../hooks/useServices";
@@ -62,7 +62,7 @@ function addDays(date: Date, days: number) {
   return d;
 }
 
-const WEEKDAY_LABELS = ["Segunda", "Terça", "Quarta", "Quinta", "Sexta"];
+const WEEKDAY_LABELS = ["Domingo", "Segunda", "Terça", "Quarta", "Quinta", "Sexta", "Sábado"];
 const MONTH_WEEKDAY_LABELS = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
 
 function escapeHtml(value: string) {
@@ -219,15 +219,20 @@ export default function AgendaModule({ patients, userRole, userPermissions, onNa
     setIsFormOpen(true);
   };
 
-  const handleSaveEvent = async (id: string, payload: Partial<AgendaEvent>, scope?: AgendaEventScope, force?: boolean) => {
-    await updateEvent(id, payload, scope, force);
+  const handleSaveEvent = async (
+    id: string,
+    payload: Partial<AgendaEvent>,
+    scope?: AgendaEventScope,
+    force?: boolean,
+    recurrence?: RecurrenceConfig
+  ) => {
+    await updateEvent(id, payload, scope, force, recurrence);
     setSelectedEvent((prev) => (prev && prev.id === id ? { ...prev, ...payload } : prev));
   };
 
   // Prints a standalone HTML document (browser "Salvar como PDF") for the
-  // currently visible range — week export is Monday-Friday only (the on-screen
-  // grid keeps showing Sun-Sat; this only affects what gets exported), month
-  // export covers every day of the month.
+  // currently visible range — week export covers all 7 days (Sun-Sat), same as
+  // the on-screen grid and the month export.
   const handleExportPdf = () => {
     if (view !== "week" && view !== "month") return;
 
@@ -246,11 +251,10 @@ export default function AgendaModule({ patients, userRole, userPermissions, onNa
 
     if (view === "week") {
       const weekStart = startOfWeek(currentDate);
-      const monday = addDays(weekStart, 1);
-      const friday = addDays(weekStart, 5);
-      rangeLabel = `${monday.toLocaleDateString("pt-BR")} a ${friday.toLocaleDateString("pt-BR")}`;
+      const weekEnd = addDays(weekStart, 6);
+      rangeLabel = `${weekStart.toLocaleDateString("pt-BR")} a ${weekEnd.toLocaleDateString("pt-BR")}`;
 
-      const days = Array.from({ length: 5 }, (_, i) => addDays(monday, i));
+      const days = Array.from({ length: 7 }, (_, i) => addDays(weekStart, i));
       columnsHtml = days
         .map((day, i) => {
           const dayEvents = events
@@ -415,7 +419,7 @@ export default function AgendaModule({ patients, userRole, userPermissions, onNa
               <button
                 onClick={handleExportPdf}
                 className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all border bg-white border-zinc-200 text-zinc-500 hover:border-indigo-300"
-                title={view === "week" ? "Exportar PDF (segunda a sexta)" : "Exportar PDF do mês"}
+                title={view === "week" ? "Exportar PDF da semana (domingo a sábado)" : "Exportar PDF do mês"}
               >
                 <Download size={13} />
                 <span className="hidden sm:inline">Exportar</span>

@@ -83,8 +83,23 @@ export function useAgendaEvents(filters?: { patientId?: string; status?: string 
   );
 
   const updateEvent = useCallback(
-    async (id: string, payload: Partial<AgendaEvent>, scope: AgendaEventScope = "only", force?: boolean) => {
+    async (
+      id: string,
+      payload: Partial<AgendaEvent>,
+      scope: AgendaEventScope = "only",
+      force?: boolean,
+      recurrence?: RecurrenceConfig
+    ) => {
       const body: Record<string, any> = agendaEventToApi(payload);
+      if (recurrence) {
+        // Only meaningful when turning a standalone event into a new series — see
+        // backend/routes/agenda.ts PUT handler (skipped when the event already
+        // belongs to one, since editing an active series' rule isn't supported yet).
+        body.recurrence_freq = recurrence.freq;
+        body.recurrence_interval = recurrence.interval;
+        if (recurrence.count) body.recurrence_count = recurrence.count;
+        if (recurrence.endDate) body.recurrence_end_date = recurrence.endDate;
+      }
       if (force) body.force = true;
       const res = await authFetch(`/api/agenda/${id}?scope=${scope}`, {
         method: "PUT",

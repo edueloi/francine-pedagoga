@@ -264,7 +264,47 @@ router.put("/:id", async (req, res) => {
 
     const values = COLUMNS.map((col) => merged[col] ?? null);
 
-    if (scope === "future" && before.recurrence_group_id) {
+    // Turning a standalone event into a brand-new recurring series (only offered by
+    // the frontend when the event isn't already part of one — editing an active
+    // series' rule isn't supported here). Occurrence 0 is this same row (updated
+    // in place, so its id/history stay intact); 1..count-1 are new future rows
+    // sharing a fresh recurrence_group_id, mirroring the POST / creation logic.
+    if (req.body.recurrence_freq && !before.recurrence_group_id) {
+      const freq = req.body.recurrence_freq;
+      const interval = parseInt(req.body.recurrence_interval) || 1;
+      const until = req.body.recurrence_end_date ? new Date(`${req.body.recurrence_end_date}T12:00:00`) : null;
+      const parsedCount = parseInt(req.body.recurrence_count);
+      const count = Math.min(
+        MAX_OCCURRENCES,
+        (!isNaN(parsedCount) && parsedCount > 0) ? parsedCount : (until ? MAX_OCCURRENCES : 1)
+      );
+      const recurrenceGroupId = crypto.randomUUID();
+      const recurrenceRule = JSON.stringify({ freq, interval, count, until: req.body.recurrence_end_date || null });
+
+      const baseStart = new Date(merged.start_time);
+      const durationMs = new Date(merged.end_time).getTime() - baseStart.getTime();
+
+      const setClause = [...COLUMNS, "recurrence_group_id", "recurrence_rule"].map((col) => `${col} = ?`).join(", ");
+      await pool.query(`UPDATE agenda_events SET ${setClause} WHERE id = ?`, [
+        ...values, recurrenceGroupId, recurrenceRule, req.params.id,
+      ]);
+
+      for (let i = 1; i < count; i++) {
+        const occStart = stepOccurrence(baseStart, freq, interval, i);
+        if (until && occStart >= until) break;
+        const occEnd = new Date(occStart.getTime() + durationMs);
+        const occValues = COLUMNS.map((col) => {
+          if (col === "start_time") return toSqlDateTime(occStart);
+          if (col === "end_time") return toSqlDateTime(occEnd);
+          return merged[col] ?? null;
+        });
+        await pool.query(
+          `INSERT INTO agenda_events (${COLUMNS.join(", ")}, recurrence_group_id, recurrence_rule)
+           VALUES (${COLUMNS.map(() => "?").join(", ")}, ?, ?)`,
+          [...occValues, recurrenceGroupId, recurrenceRule]
+        );
+      }
+    } else if (scope === "future" && before.recurrence_group_id) {
       // Apply the time-of-day/duration CHANGE (delta) to every future occurrence,
       // preserving each one's own date — not the literal start_time/end_time from
       // the edited row, which would collapse every future session onto one date.

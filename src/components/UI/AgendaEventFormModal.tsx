@@ -15,8 +15,17 @@ interface RecurrencePreset {
   count: number;
 }
 
-const RECURRENCE_PRESETS: RecurrencePreset[] = [
+// Same cap as backend/routes/agenda.ts MAX_OCCURRENCES — there is no true "never
+// ends" option since every occurrence is a stored row, so "Contínuo" generates
+// as far out as the system supports (~2 years) instead. The clinic re-runs this
+// (or extends the series) before it runs out; she still ends it herself whenever
+// the patient actually stops, same as any other recurring series (delete "esta e
+// as sessões futuras").
+export const MAX_RECURRENCE_OCCURRENCES = 104;
+
+export const RECURRENCE_PRESETS: RecurrencePreset[] = [
   { label: 'Não repete', freq: null, interval: 1, count: 1 },
+  { label: 'Semanal — Contínuo (sem data definida)', freq: 'WEEKLY', interval: 1, count: MAX_RECURRENCE_OCCURRENCES },
   { label: 'Semanal — 4 sessões', freq: 'WEEKLY', interval: 1, count: 4 },
   { label: 'Semanal — 8 sessões', freq: 'WEEKLY', interval: 1, count: 8 },
   { label: 'Semanal — 12 sessões', freq: 'WEEKLY', interval: 1, count: 12 },
@@ -54,7 +63,7 @@ const INTERVAL_UNIT: Record<RecurrenceFrequency, string> = {
   YEARLY: 'Ano(s)',
 };
 
-function recurrenceSummaryLabel(recurrence: RecurrenceConfig | null): string {
+export function recurrenceSummaryLabel(recurrence: RecurrenceConfig | null): string {
   if (!recurrence) return 'Não repete';
   const preset = RECURRENCE_PRESETS.find(
     (p) => p.freq === recurrence.freq && p.interval === recurrence.interval && p.count === recurrence.count
@@ -71,7 +80,7 @@ interface RecurrencePickerModalProps {
   onChange: (value: RecurrenceConfig | null) => void;
 }
 
-const RecurrencePickerModal: React.FC<RecurrencePickerModalProps> = ({ isOpen, onClose, value, onChange }) => {
+export const RecurrencePickerModal: React.FC<RecurrencePickerModalProps> = ({ isOpen, onClose, value, onChange }) => {
   const [stage, setStage] = useState<'list' | 'custom'>('list');
   const [customFreq, setCustomFreq] = useState<RecurrenceFrequency>('WEEKLY');
   const [customInterval, setCustomInterval] = useState(1);
