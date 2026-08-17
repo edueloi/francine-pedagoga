@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Calendar, Clock, FileCheck2, Trash2, X, Link2, FileText, MessageCircle, Pencil, Repeat, CalendarClock } from 'lucide-react';
+import { Calendar, Clock, FileCheck2, Trash2, X, Link2, FileText, MessageCircle, Pencil, Repeat, CalendarClock, Video, MapPin, Briefcase } from 'lucide-react';
 import { Modal, ModalFooter } from './Modal';
 import { Button, IconButton } from './Button';
 import { Combobox } from './Combobox';
@@ -8,11 +8,11 @@ import { RecurrencePickerModal, recurrenceSummaryLabel } from './AgendaEventForm
 import { AgendaEvent, Insurance, Patient, Service, SystemUser, RecurrenceConfig } from '../../types';
 import type { AgendaEventScope } from '../../hooks/useAgendaEvents';
 
-const STATUS_META: Record<AgendaEvent['status'], { label: string; dot: string }> = {
-  pendente: { label: 'Agendado', dot: 'bg-slate-400' },
-  confirmado: { label: 'Confirmado', dot: 'bg-emerald-500' },
-  realizado: { label: 'Realizado', dot: 'bg-indigo-500' },
-  cancelado: { label: 'Cancelado', dot: 'bg-rose-500' },
+const STATUS_META: Record<AgendaEvent['status'], { label: string; dot: string; badge: string; activeBtn: string }> = {
+  pendente: { label: 'Agendado', dot: 'bg-slate-400', badge: 'bg-slate-100 text-slate-600', activeBtn: 'bg-slate-600 border-slate-600' },
+  confirmado: { label: 'Confirmado', dot: 'bg-emerald-500', badge: 'bg-emerald-50 text-emerald-700', activeBtn: 'bg-emerald-600 border-emerald-600' },
+  realizado: { label: 'Realizado', dot: 'bg-[#1070ca]', badge: 'bg-blue-50 text-[#1070ca]', activeBtn: 'bg-[#1070ca] border-[#1070ca]' },
+  cancelado: { label: 'Cancelado', dot: 'bg-rose-500', badge: 'bg-rose-50 text-rose-700', activeBtn: 'bg-rose-600 border-rose-600' },
 };
 
 function formatDateLabel(iso: string) {
@@ -123,6 +123,16 @@ export const AgendaEventModal: React.FC<AgendaEventModalProps> = ({
     () => insurances.find((ins) => ins.id === event?.insuranceId),
     [insurances, event?.insuranceId]
   );
+
+  const service = useMemo(
+    () => services.find((s) => s.id === event?.serviceId),
+    [services, event?.serviceId]
+  );
+
+  // The "Guia" (convênio) block is only relevant when this patient actually has
+  // insurance to link — showing an empty card for every particular patient (the
+  // common case) was pure clutter.
+  const showGuiaSection = !!linkedInsurance || patientInsurances.length > 0;
 
   // Other sessions sharing the same recurrence_group_id, so the user can see exactly
   // what a "this and future" edit/delete would touch before confirming it.
@@ -349,7 +359,7 @@ export const AgendaEventModal: React.FC<AgendaEventModalProps> = ({
 
   return (
     <Modal isOpen={isOpen} onClose={onClose} size="lg" hideCloseButton>
-      <div className="-m-6 mb-0 sm:-m-8 sm:mb-0 bg-gradient-to-br from-indigo-500 to-indigo-700 text-white px-6 pt-6 pb-5 sm:px-8 sm:pt-8 sm:pb-6 rounded-t-2xl relative">
+      <div className="-m-6 mb-0 sm:-m-8 sm:mb-0 bg-gradient-to-br from-[#1070ca] to-[#0b5194] text-white px-6 pt-6 pb-5 sm:px-8 sm:pt-8 sm:pb-6 rounded-t-2xl relative">
         <button onClick={onClose} className="absolute top-4 right-4 p-1.5 rounded-full text-white/70 hover:text-white hover:bg-white/10 transition">
           <X size={18} />
         </button>
@@ -363,12 +373,11 @@ export const AgendaEventModal: React.FC<AgendaEventModalProps> = ({
           </div>
         </div>
 
-        <div className="flex flex-wrap gap-2 mt-4">
+        <div className="flex flex-wrap items-center gap-2 mt-4">
           <span className="inline-flex items-center gap-1.5 bg-white/15 rounded-full px-3 py-1 text-[11px] font-bold">
             <Calendar size={12} /> {formatDateLabel(event.start)}
-          </span>
-          <span className="inline-flex items-center gap-1.5 bg-white/15 rounded-full px-3 py-1 text-[11px] font-bold">
-            <Clock size={12} /> {formatTimeLabel(event.start)} – {formatTimeLabel(event.end)}
+            <span className="text-white/40">•</span>
+            <Clock size={12} /> {formatTimeLabel(event.start)}–{formatTimeLabel(event.end)}
           </span>
           <span className="inline-flex items-center gap-1.5 bg-white/15 rounded-full px-3 py-1 text-[11px] font-bold">
             <span className={`w-1.5 h-1.5 rounded-full ${statusMeta.dot}`} /> {statusMeta.label}
@@ -378,36 +387,48 @@ export const AgendaEventModal: React.FC<AgendaEventModalProps> = ({
               <Repeat size={12} /> Série
             </span>
           )}
+          {onNavigateToPatient && patient && (
+            <button
+              onClick={() => onNavigateToPatient(patient.id)}
+              className="inline-flex items-center gap-1.5 bg-white text-[#1070ca] hover:bg-white/90 rounded-full px-3 py-1 text-[11px] font-black transition ml-auto"
+            >
+              <FileText size={12} /> Ver prontuário
+            </button>
+          )}
+          {waHref && (
+            <a
+              href={waHref}
+              target="_blank"
+              rel="noopener noreferrer"
+              className={`inline-flex items-center gap-1.5 bg-emerald-500 hover:bg-emerald-400 rounded-full px-3 py-1 text-[11px] font-black transition ${onNavigateToPatient && patient ? "" : "ml-auto"}`}
+            >
+              <MessageCircle size={12} /> WhatsApp
+            </a>
+          )}
         </div>
-
-        {patient && (onNavigateToPatient || waHref) && (
-          <div className="flex flex-wrap gap-2 mt-3">
-            {onNavigateToPatient && (
-              <button
-                onClick={() => onNavigateToPatient(patient.id)}
-                className="inline-flex items-center gap-1.5 bg-white/10 hover:bg-white/20 rounded-full px-3 py-1.5 text-[11px] font-bold transition"
-              >
-                <FileText size={12} /> Ver prontuário
-              </button>
-            )}
-            {waHref && (
-              <a
-                href={waHref}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center gap-1.5 bg-white/10 hover:bg-white/20 rounded-full px-3 py-1.5 text-[11px] font-bold transition"
-              >
-                <MessageCircle size={12} /> WhatsApp
-              </a>
-            )}
-          </div>
-        )}
       </div>
 
       <div className="pt-6 space-y-6">
-        <div>
-          <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5">Tipo de atendimento</p>
-          <p className="text-sm font-bold text-slate-700">{event.tipo}</p>
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+          <div className="rounded-xl bg-slate-50 border border-slate-100 p-3">
+            <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Atendimento</p>
+            <p className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
+              <Briefcase size={13} className="text-slate-400 shrink-0" /> {event.tipo}
+            </p>
+          </div>
+          <div className="rounded-xl bg-slate-50 border border-slate-100 p-3">
+            <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Modalidade</p>
+            <p className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
+              {event.modality === 'online' ? <Video size={13} className="text-cyan-500 shrink-0" /> : <MapPin size={13} className="text-slate-400 shrink-0" />}
+              {event.modality === 'online' ? 'Online' : 'Presencial'}
+            </p>
+          </div>
+          {service && (
+            <div className="rounded-xl bg-slate-50 border border-slate-100 p-3 col-span-2 sm:col-span-1">
+              <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Serviço</p>
+              <p className="text-xs font-bold text-slate-700 truncate">{service.name}</p>
+            </div>
+          )}
         </div>
 
         {event.alertas && (
@@ -417,66 +438,66 @@ export const AgendaEventModal: React.FC<AgendaEventModalProps> = ({
           </div>
         )}
 
-        {/* Seção Guia — vínculo com convênio, equivalente à "comanda" do psi-painel-karen */}
-        <div className="rounded-2xl border border-indigo-100 bg-indigo-50/40 p-4">
-          <div className="flex items-center gap-2 mb-3">
-            <FileCheck2 size={15} className="text-indigo-600" />
-            <p className="text-[11px] font-black text-indigo-700 uppercase tracking-widest">Guia</p>
-          </div>
+        {/* Seção Guia — vínculo com convênio. Só aparece quando o paciente realmente
+            tem guia(s) cadastrada(s); pra atendimento particular (a maioria) mostrar
+            um card vazio dizendo "não possui guias" era só ruído visual. */}
+        {showGuiaSection && (
+          <div className="rounded-2xl border border-blue-100 bg-blue-50/40 p-4">
+            <div className="flex items-center gap-2 mb-3">
+              <FileCheck2 size={15} className="text-[#1070ca]" />
+              <p className="text-[11px] font-black text-[#1070ca] uppercase tracking-widest">Guia</p>
+            </div>
 
-          {linkedInsurance ? (
-            <div className="space-y-2">
-              <p className="text-sm font-bold text-slate-800">
-                {linkedInsurance.nome} — Guia nº {linkedInsurance.numeroGuia}
-              </p>
-              <div className="w-full h-2 bg-slate-200 rounded-full overflow-hidden">
-                <div
-                  className="h-full bg-indigo-500"
-                  style={{
-                    width: `${Math.min(
-                      100,
-                      (linkedInsurance.sessoesUtilizadas / Math.max(1, linkedInsurance.sessoesAutorizadas)) * 100
-                    )}%`,
-                  }}
-                />
+            {linkedInsurance ? (
+              <div className="space-y-2">
+                <p className="text-sm font-bold text-slate-800">
+                  {linkedInsurance.nome} — Guia nº {linkedInsurance.numeroGuia}
+                </p>
+                <div className="w-full h-2 bg-slate-200 rounded-full overflow-hidden">
+                  <div
+                    className="h-full bg-[#1070ca]"
+                    style={{
+                      width: `${Math.min(
+                        100,
+                        (linkedInsurance.sessoesUtilizadas / Math.max(1, linkedInsurance.sessoesAutorizadas)) * 100
+                      )}%`,
+                    }}
+                  />
+                </div>
+                <p className="text-[11px] font-semibold text-slate-500">
+                  {linkedInsurance.sessoesUtilizadas} de {linkedInsurance.sessoesAutorizadas} sessões utilizadas
+                </p>
+                {canEdit && (
+                  <button
+                    onClick={() => handleLinkInsurance('')}
+                    className="text-[11px] font-bold text-rose-500 hover:text-rose-600"
+                    disabled={saving}
+                  >
+                    Desvincular guia
+                  </button>
+                )}
               </div>
-              <p className="text-[11px] font-semibold text-slate-500">
-                {linkedInsurance.sessoesUtilizadas} de {linkedInsurance.sessoesAutorizadas} sessões utilizadas
-              </p>
-              {canEdit && (
-                <button
-                  onClick={() => handleLinkInsurance('')}
-                  className="text-[11px] font-bold text-rose-500 hover:text-rose-600"
-                  disabled={saving}
-                >
-                  Desvincular guia
-                </button>
-              )}
-            </div>
-          ) : patientInsurances.length > 0 ? (
-            <div className="space-y-2">
-              <p className="text-xs text-slate-500">Sem guia de convênio vinculada a este agendamento.</p>
-              {canEdit && (
-                <Combobox
-                  size="sm"
-                  icon={<Link2 size={13} />}
-                  placeholder="Vincular guia de convênio"
-                  options={patientInsurances.map((ins) => ({
-                    value: ins.id,
-                    label: `${ins.nome} — Guia nº ${ins.numeroGuia}`,
-                    subtitle: `${ins.sessoesUtilizadas}/${ins.sessoesAutorizadas} sessões`,
-                  }))}
-                  value=""
-                  onChange={(v) => handleLinkInsurance(v as string)}
-                />
-              )}
-            </div>
-          ) : (
-            <p className="text-xs text-slate-500">
-              Este paciente não possui guias de convênio cadastradas.
-            </p>
-          )}
-        </div>
+            ) : (
+              <div className="space-y-2">
+                <p className="text-xs text-slate-500">Sem guia de convênio vinculada a este agendamento.</p>
+                {canEdit && (
+                  <Combobox
+                    size="sm"
+                    icon={<Link2 size={13} />}
+                    placeholder="Vincular guia de convênio"
+                    options={patientInsurances.map((ins) => ({
+                      value: ins.id,
+                      label: `${ins.nome} — Guia nº ${ins.numeroGuia}`,
+                      subtitle: `${ins.sessoesUtilizadas}/${ins.sessoesAutorizadas} sessões`,
+                    }))}
+                    value=""
+                    onChange={(v) => handleLinkInsurance(v as string)}
+                  />
+                )}
+              </div>
+            )}
+          </div>
+        )}
 
         <div>
           <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2.5">Alterar status</p>
@@ -488,8 +509,8 @@ export const AgendaEventModal: React.FC<AgendaEventModalProps> = ({
                 disabled={saving || !canEdit}
                 className={`px-3 py-1.5 rounded-xl text-[11px] font-black uppercase tracking-wide border transition-all ${
                   event.status === status
-                    ? 'bg-indigo-600 text-white border-indigo-600'
-                    : 'bg-white text-slate-500 border-slate-200 hover:border-indigo-300'
+                    ? `${STATUS_META[status].activeBtn} text-white`
+                    : 'bg-white text-slate-500 border-slate-200 hover:border-blue-300'
                 }`}
               >
                 {STATUS_META[status].label}
