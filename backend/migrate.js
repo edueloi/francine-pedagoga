@@ -481,6 +481,9 @@ async function migrate() {
   await addColumnIfMissing(conn, "users", "data_nascimento", "DATE NULL");
   await addColumnIfMissing(conn, "users", "abordagens", "TEXT NULL COMMENT 'lista de abordagens/especialidades, separadas por vírgula'");
 
+  // ---- USERS: preferências de interface (view de lista/cartão, itens por página, etc.) ----
+  await addColumnIfMissing(conn, "users", "preferences", "JSON NULL");
+
   // ---- PENDING INVITES: convite de cadastro para quem ainda não tem conta ----
   // Diferente de users.reset_token (que serve para redefinir senha de uma conta já
   // existente), aqui a conta em si só é criada quando a pessoa aceita o convite —

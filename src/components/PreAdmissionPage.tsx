@@ -241,8 +241,8 @@ export default function PreAdmissionPage() {
               </div>
               <div className="grid sm:grid-cols-2 gap-4">
                 <div className="space-y-1.5">
-                  <label className={labelClass}>Data de nascimento</label>
-                  <input type="date" value={dataNascimento} onChange={(e) => setDataNascimento(e.target.value)} className={inputClass} />
+                  <label className={labelClass}>Data de nascimento *</label>
+                  <input required type="date" value={dataNascimento} onChange={(e) => setDataNascimento(e.target.value)} className={inputClass} />
                 </div>
                 <div className="space-y-1.5">
                   <label className={labelClass}>Cidade</label>

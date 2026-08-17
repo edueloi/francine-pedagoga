@@ -102,6 +102,11 @@ publicAdmissionRouter.post("/:token", publicSubmitRateLimiter, async (req, res) 
   if (!nomeResponsavel || typeof nomeResponsavel !== "string" || !nomeResponsavel.trim()) {
     return res.status(400).json({ error: "O nome do responsável é obrigatório" });
   }
+  if (!dataNascimento || typeof dataNascimento !== "string") {
+    // Sem isso o cadastro era aceito com data_nascimento NULL, e a idade (calculada a
+    // partir dela) aparecia como "0 anos" na lista de pacientes sem nenhum aviso.
+    return res.status(400).json({ error: "A data de nascimento é obrigatória" });
+  }
 
   const historico =
     "Cadastro criado pela família via formulário de pré-admissão online. " +
@@ -116,7 +121,7 @@ publicAdmissionRouter.post("/:token", publicSubmitRateLimiter, async (req, res) 
       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, CURDATE(), 'Ativo')`,
       [
         nomeCrianca.trim(),
-        dataNascimento || null,
+        dataNascimento,
         nomeResponsavel.trim(),
         parentescoResponsavel || null,
         telefoneResponsavel || null,
@@ -129,6 +134,15 @@ publicAdmissionRouter.post("/:token", publicSubmitRateLimiter, async (req, res) 
     await pool.query(
       "UPDATE admission_invites SET used_at = NOW(), created_patient_id = ? WHERE id = ?",
       [result.insertId, inviteRows[0].id]
+    );
+
+    // A blank anamnese record, same as the staff "Admitir Novo" wizard creates
+    // (src/components/PatientsModule.tsx) — without this, a patient created via the
+    // public pre-admission link had no anamnese row at all, so nothing the family
+    // filled in ever had anywhere to land, and the clinic saw "no data came through".
+    await pool.query(
+      `INSERT INTO anamneses (patient_id, queixa_principal) VALUES (?, ?)`,
+      [result.insertId, "Aguardando preenchimento."]
     );
 
     if (emailResponsavel) {

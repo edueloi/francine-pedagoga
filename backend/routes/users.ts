@@ -64,6 +64,25 @@ router.put("/me", async (req, res) => {
   res.json(rows[0]);
 });
 
+// GET /api/users/me/preferences — arbitrary per-user UI preferences (view mode,
+// page size, etc.), stored as a single JSON blob so new preference keys don't
+// need their own migration each time.
+router.get("/me/preferences", async (req, res) => {
+  const [rows]: any = await pool.query("SELECT preferences FROM users WHERE id = ?", [req.user!.id]);
+  if (rows.length === 0) return res.status(404).json({ error: "Não encontrado" });
+  res.json(rows[0].preferences || {});
+});
+
+// PATCH /api/users/me/preferences — merges the given keys into the existing
+// preferences blob instead of replacing it, so callers only send what changed.
+router.patch("/me/preferences", async (req, res) => {
+  const [rows]: any = await pool.query("SELECT preferences FROM users WHERE id = ?", [req.user!.id]);
+  if (rows.length === 0) return res.status(404).json({ error: "Não encontrado" });
+  const merged = { ...(rows[0].preferences || {}), ...(req.body || {}) };
+  await pool.query("UPDATE users SET preferences = ? WHERE id = ?", [JSON.stringify(merged), req.user!.id]);
+  res.json(merged);
+});
+
 router.post("/", async (req, res) => {
   const { name, email, password, role } = req.body;
   if (!name || !email || !password || !role) {
