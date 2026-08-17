@@ -1,25 +1,35 @@
 import React, { useState, useEffect } from "react";
-import { Clock, Plus, Save, Info, CheckSquare, Trash2, BookOpen, AlertCircle, Sparkles, Star, Lightbulb, Check } from "lucide-react";
+import { Clock, Plus, Save, Info, CheckSquare, Trash2, BookOpen, AlertCircle, Sparkles, Star, Lightbulb, Check, History, Eye } from "lucide-react";
 import { Patient, Session, Session as SessionType, UserRole, UserPermissions } from "../types";
-import { useToast } from "./UI";
+import { useToast, ConfirmModal, Modal } from "./UI";
 
 interface SessionEvolutionProps {
   patients: Patient[];
   userRole: UserRole;
   onCreateSession: (payload: Partial<Session>) => Promise<void>;
+  onDeleteSession?: (id: string) => Promise<void>;
   sessions: Session[];
   userPermissions?: UserPermissions;
 }
+
+const INDEPENDENCE_BADGE: Record<SessionType["nivelIndependencia"], string> = {
+  "Totalmente Independente": "bg-emerald-50 text-emerald-700 border-emerald-100",
+  "Suporte Leve": "bg-blue-50 text-[#1070ca] border-blue-100",
+  "Suporte Moderado": "bg-amber-50 text-amber-700 border-amber-100",
+  "Suporte Intenso": "bg-rose-50 text-rose-700 border-rose-100",
+};
 
 export default function SessionEvolution({
   patients,
   userRole,
   onCreateSession,
+  onDeleteSession,
   sessions,
   userPermissions
 }: SessionEvolutionProps) {
   const toast = useToast();
   const canCreate = userPermissions ? userPermissions.sessions.criar : (userRole !== UserRole.RESTRICTED);
+  const canDelete = userPermissions ? userPermissions.sessions.excluir : (userRole === UserRole.ADMIN);
 
   const [selectedPatId, setSelectedPatId] = useState<string>(patients[0]?.id || "");
   const [sessionDuration, setSessionDuration] = useState<number>(50);
@@ -178,6 +188,36 @@ Documento assinado digitalmente no prontuário eletrônico. Conforme LGPD.`;
 
   const [saving, setSaving] = useState(false);
 
+  // Histórico de sessões — visualizar/excluir evoluções já arquivadas do paciente
+  const [viewingSession, setViewingSession] = useState<Session | null>(null);
+  const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
+
+  const patientSessions = sessions
+    .filter((s) => s.patientId === selectedPatId)
+    .sort((a, b) => b.data.localeCompare(a.data));
+
+  const formatDateSafe = (value?: string | null) => {
+    if (!value) return "Data não informada";
+    const parsed = new Date(value);
+    return isNaN(parsed.getTime()) ? "Data não informada" : parsed.toLocaleDateString("pt-BR");
+  };
+
+  const handleConfirmDeleteSession = async () => {
+    if (!pendingDeleteId || !onDeleteSession) return;
+    setIsDeleting(true);
+    try {
+      await onDeleteSession(pendingDeleteId);
+      if (viewingSession?.id === pendingDeleteId) setViewingSession(null);
+      toast.success("Evolução removida do histórico.");
+    } catch (err: any) {
+      toast.error(err.message || "Falha ao remover evolução.");
+    } finally {
+      setIsDeleting(false);
+      setPendingDeleteId(null);
+    }
+  };
+
   const handleSaveSession = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedPat) return;
@@ -293,6 +333,65 @@ Documento assinado digitalmente no prontuário eletrônico. Conforme LGPD.`;
               <p className="text-[11px] text-slate-500 leading-relaxed">
                 Ao selecionar um dos modelos rápidos de comportamento acima, os campos clínicos e a redação técnica formal do prontuário ao lado são atualizados instantaneamente. Você pode alterar manualmente qualquer trecho antes de salvar.
               </p>
+            </div>
+          </div>
+
+          {/* Session History for the selected patient */}
+          <div className="bg-white border border-slate-100 rounded-3xl p-6 shadow-sm space-y-4">
+            <div className="flex items-center gap-2">
+              <History className="h-5 w-5 text-[#1070ca]" />
+              <h3 className="font-display font-extrabold text-slate-900 text-sm uppercase tracking-wider">
+                Histórico de {selectedPat ? selectedPat.nome.split(" ")[0] : "Sessões"} ({patientSessions.length})
+              </h3>
+            </div>
+
+            <div className="space-y-2 max-h-[420px] overflow-y-auto pr-1">
+              {patientSessions.map((s) => (
+                <div
+                  key={s.id}
+                  className="p-3.5 bg-slate-50/70 hover:bg-blue-50/30 border border-slate-100 rounded-2xl transition flex items-start justify-between gap-2"
+                >
+                  <button
+                    type="button"
+                    onClick={() => setViewingSession(s)}
+                    className="min-w-0 flex-1 text-left cursor-pointer"
+                  >
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="text-xs font-black text-slate-800">{formatDateSafe(s.data)}</span>
+                      <span className={`text-[9px] font-black uppercase px-2 py-0.5 rounded-full border ${INDEPENDENCE_BADGE[s.nivelIndependencia]}`}>
+                        {s.nivelIndependencia}
+                      </span>
+                    </div>
+                    <p className="text-[11px] text-slate-500 mt-1 font-semibold flex items-center gap-1">
+                      <Clock className="h-3 w-3 shrink-0" /> {s.tempoSessao} min
+                      {s.habilidadesTrabalhadas.length > 0 && ` • ${s.habilidadesTrabalhadas.slice(0, 2).join(", ")}${s.habilidadesTrabalhadas.length > 2 ? "..." : ""}`}
+                    </p>
+                  </button>
+                  <div className="flex items-center gap-1 shrink-0">
+                    <button
+                      type="button"
+                      onClick={() => setViewingSession(s)}
+                      aria-label="Ver evolução completa"
+                      className="p-1.5 rounded-lg text-slate-400 hover:text-[#1070ca] hover:bg-blue-50 transition cursor-pointer"
+                    >
+                      <Eye className="h-4 w-4" />
+                    </button>
+                    {canDelete && onDeleteSession && (
+                      <button
+                        type="button"
+                        onClick={() => setPendingDeleteId(s.id)}
+                        aria-label="Remover evolução"
+                        className="p-1.5 rounded-lg text-slate-300 hover:text-red-500 hover:bg-red-50 transition cursor-pointer"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </button>
+                    )}
+                  </div>
+                </div>
+              ))}
+              {patientSessions.length === 0 && (
+                <p className="text-[11px] text-slate-400 text-center py-6">Nenhuma evolução arquivada ainda para este paciente.</p>
+              )}
             </div>
           </div>
         </div>
@@ -510,6 +609,51 @@ Documento assinado digitalmente no prontuário eletrônico. Conforme LGPD.`;
           </div>
         </div>
       </div>
+
+      <Modal
+        isOpen={!!viewingSession}
+        onClose={() => setViewingSession(null)}
+        title={viewingSession ? `Evolução de ${formatDateSafe(viewingSession.data)}` : ""}
+        size="lg"
+      >
+        {viewingSession && (
+          <div className="space-y-4">
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className={`text-[10px] font-black uppercase px-2.5 py-1 rounded-full border ${INDEPENDENCE_BADGE[viewingSession.nivelIndependencia]}`}>
+                {viewingSession.nivelIndependencia}
+              </span>
+              <span className="text-[10px] font-bold text-slate-500 flex items-center gap-1">
+                <Clock className="h-3 w-3" /> {viewingSession.tempoSessao} minutos
+              </span>
+              <span className="text-[10px] font-bold text-slate-500">Por: {viewingSession.profissional}</span>
+            </div>
+            <div className="bg-slate-900 text-slate-200 rounded-2xl p-5 font-mono text-[10px] whitespace-pre-wrap leading-relaxed max-h-[420px] overflow-y-auto">
+              {viewingSession.observacoesClinicas || "Sem redação técnica registrada para esta evolução."}
+            </div>
+            {canDelete && onDeleteSession && (
+              <button
+                type="button"
+                onClick={() => setPendingDeleteId(viewingSession.id)}
+                className="text-xs font-black text-red-500 hover:text-red-600 flex items-center gap-1.5 cursor-pointer"
+              >
+                <Trash2 className="h-3.5 w-3.5" /> Remover esta evolução
+              </button>
+            )}
+          </div>
+        )}
+      </Modal>
+
+      <ConfirmModal
+        isOpen={!!pendingDeleteId}
+        onClose={() => setPendingDeleteId(null)}
+        onConfirm={handleConfirmDeleteSession}
+        title="Remover evolução do histórico?"
+        message="Esta ação remove a evolução clínica permanentemente do prontuário do paciente."
+        confirmLabel="Remover"
+        cancelLabel="Cancelar"
+        variant="danger"
+        loading={isDeleting}
+      />
     </div>
   );
 }

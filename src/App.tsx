@@ -78,7 +78,7 @@ const PAGE_TITLES: Record<string, string> = {
 function AuthenticatedApp() {
   const { user, logout } = useAuth();
   const { patients, setPatients } = usePatients();
-  const { sessions, createSession } = useSessions();
+  const { sessions, createSession, deleteSession } = useSessions();
   const { insurances, createInsurance, updateInsurance, deleteInsurance } = useInsurances();
   const { services, createService, updateService, deleteService } = useServices();
   const { users, createUser, updateUser, deleteUser, inviteUser } = useUsers();
@@ -177,6 +177,7 @@ function AuthenticatedApp() {
                   patients={patients}
                   userRole={userRole}
                   onCreateSession={createSession}
+                  onDeleteSession={deleteSession}
                   sessions={sessions}
                   userPermissions={activePermissions}
                 />
