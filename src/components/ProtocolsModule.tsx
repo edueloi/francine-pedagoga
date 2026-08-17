@@ -21,7 +21,9 @@ import {
   TrendingUp, 
   HelpCircle,
   Clock,
-  ClipboardList
+  ClipboardList,
+  Pencil,
+  X as XIcon
 } from "lucide-react";
 import jsPDF from "jspdf";
 import { Patient, Protocol, ProtocolType, UserRole, UserPermissions } from "../types";
@@ -41,7 +43,7 @@ export default function ProtocolsModule({ patients, userRole, userPermissions }:
   const canCreate = userPermissions ? userPermissions.protocols.criar : (userRole !== UserRole.RESTRICTED);
   const canDelete = userPermissions ? userPermissions.protocols.excluir : (userRole === UserRole.ADMIN);
 
-  const { protocols, loading, error, createProtocol, deleteProtocol } = useProtocols();
+  const { protocols, loading, error, createProtocol, updateProtocol, deleteProtocol } = useProtocols();
   const [selectedPatId, setSelectedPatId] = useState<string>(patients[0]?.id || "");
   const [selectedProtoType, setSelectedProtoType] = useState<ProtocolType>(ProtocolType.A);
 
@@ -56,6 +58,10 @@ export default function ProtocolsModule({ patients, userRole, userPermissions }:
   // Form states for filling a new protocol
   const [formContent, setFormContent] = useState<Record<string, any>>({});
   const [formObs, setFormObs] = useState("");
+
+  // When set, the "create" workspace acts as an edit form for this existing protocol
+  // instead of a blank one (updateProtocol instead of createProtocol on submit).
+  const [editingProtocol, setEditingProtocol] = useState<Protocol | null>(null);
 
   // Delete confirmation flow
   const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
@@ -76,7 +82,36 @@ export default function ProtocolsModule({ patients, userRole, userPermissions }:
     setSelectedProtoType(type);
     setFormContent({});
     setFormObs("");
+    setEditingProtocol(null);
     setWorkspaceMode("create");
+  };
+
+  // Blank slate for a brand-new protocol, for the selected patient.
+  const handleStartNew = () => {
+    setEditingProtocol(null);
+    setFormContent({});
+    setFormObs("");
+    setWorkspaceMode("create");
+  };
+
+  // Loads an existing protocol's data into the form so it can be corrected —
+  // including which patient it belongs to, via the same patient selector used
+  // for creating protocols (previously there was no way to edit a saved protocol
+  // at all, only delete and recreate it from scratch).
+  const handleStartEdit = (proto: Protocol) => {
+    setEditingProtocol(proto);
+    setSelectedPatId(proto.patientId);
+    setSelectedProtoType(proto.tipo);
+    setFormContent({ ...proto.conteudo });
+    setFormObs(proto.observacoes || "");
+    setWorkspaceMode("create");
+  };
+
+  const handleCancelEdit = () => {
+    setEditingProtocol(null);
+    setFormContent({});
+    setFormObs("");
+    setWorkspaceMode(activeProto ? "view" : "create");
   };
 
   const handleSaveProtocol = async (e: React.FormEvent) => {
@@ -109,19 +144,29 @@ export default function ProtocolsModule({ patients, userRole, userPermissions }:
     const newProtoPayload: Partial<Protocol> = {
       patientId: selectedPatId,
       tipo: selectedProtoType,
-      dataPreenchimento: new Date().toISOString().split("T")[0],
-      profissional: "Francine Maria Tersi",
+      dataPreenchimento: editingProtocol?.dataPreenchimento || new Date().toISOString().split("T")[0],
+      profissional: editingProtocol?.profissional || "Francine Maria Tersi",
       conteudo: finalContent,
       observacoes: formObs
     };
 
     try {
-      const created = await createProtocol(newProtoPayload);
-      if (created) {
-        setActiveProto(created);
-        setWorkspaceMode("view");
+      if (editingProtocol) {
+        const updated = await updateProtocol(editingProtocol.id, newProtoPayload);
+        if (updated) {
+          setActiveProto(updated);
+          setWorkspaceMode("view");
+        }
+        setEditingProtocol(null);
+        toast.success(`Protocolo atualizado com sucesso na pasta de ${pat.nome}!`);
+      } else {
+        const created = await createProtocol(newProtoPayload);
+        if (created) {
+          setActiveProto(created);
+          setWorkspaceMode("view");
+        }
+        toast.success(`Protocolo digital salvo com sucesso na pasta de ${pat.nome}!`);
       }
-      toast.success(`Protocolo digital salvo com sucesso na pasta de ${pat.nome}!`);
     } catch (err: any) {
       toast.error(err.message || "Falha ao salvar protocolo.");
     }
@@ -203,9 +248,25 @@ export default function ProtocolsModule({ patients, userRole, userPermissions }:
     doc.line(marginX, y, pageWidth - marginX, y);
     y += 9;
 
-    // Identity card
+    // Identity card — height adapts to whichever field wraps to the most lines.
+    // A fixed 26mm card used to let long patient names/diagnósticos overflow the
+    // box and bleed into the "CONTEÚDO ESTRUTURADO" header drawn right after it.
+    const identityCols = [
+      { label: "PACIENTE", value: patient?.nome || "-" },
+      { label: "DATA DO REGISTRO", value: new Date(activeProto.dataPreenchimento).toLocaleDateString("pt-BR") },
+      { label: "APLICADOR CLÍNICO", value: activeProto.profissional },
+      { label: "DIAGNÓSTICO", value: patient?.diagnostico || "-" },
+    ];
+    const colWidth = contentWidth / 4;
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(9);
+    const identityWrapped = identityCols.map((col) => doc.splitTextToSize(col.value, colWidth - 6));
+    const maxValueLines = Math.max(1, ...identityWrapped.map((w) => w.length));
+    const cardHeight = Math.max(26, 14 + maxValueLines * 4.2);
+    ensureSpace(cardHeight + 8);
+
     doc.setFillColor(248, 250, 252);
-    doc.roundedRect(marginX, y, contentWidth, 26, 3, 3, "F");
+    doc.roundedRect(marginX, y, contentWidth, cardHeight, 3, 3, "F");
     doc.setFont("helvetica", "bold");
     doc.setFontSize(12);
     doc.setTextColor(30, 41, 59);
@@ -220,13 +281,6 @@ export default function ProtocolsModule({ patients, userRole, userPermissions }:
     doc.setTextColor(30, 64, 175);
     doc.text(badgeText, pageWidth - marginX - badgeWidth - 5 + 3, y + 8);
 
-    const identityCols = [
-      { label: "PACIENTE", value: patient?.nome || "-" },
-      { label: "DATA DO REGISTRO", value: new Date(activeProto.dataPreenchimento).toLocaleDateString("pt-BR") },
-      { label: "APLICADOR CLÍNICO", value: activeProto.profissional },
-      { label: "DIAGNÓSTICO", value: patient?.diagnostico || "-" },
-    ];
-    const colWidth = contentWidth / 4;
     identityCols.forEach((col, i) => {
       const x = marginX + 5 + i * colWidth;
       doc.setFont("courier", "bold");
@@ -236,10 +290,9 @@ export default function ProtocolsModule({ patients, userRole, userPermissions }:
       doc.setFont("helvetica", "bold");
       doc.setFontSize(9);
       doc.setTextColor(30, 41, 59);
-      const wrapped = doc.splitTextToSize(col.value, colWidth - 6);
-      doc.text(wrapped, x, y + 20);
+      doc.text(identityWrapped[i], x, y + 20);
     });
-    y += 34;
+    y += cardHeight + 8;
 
     doc.setFont("helvetica", "bold");
     doc.setFontSize(9);
@@ -475,10 +528,15 @@ export default function ProtocolsModule({ patients, userRole, userPermissions }:
             <select
               value={selectedPatId}
               onChange={(e) => {
-                setSelectedPatId(e.target.value);
+                const newPatId = e.target.value;
+                setSelectedPatId(newPatId);
+                // While filling out or editing a protocol, changing the patient here
+                // is how you reassign it — don't blow away the form by jumping to
+                // "view" mode for the newly picked patient (that used to make patient
+                // selection feel completely broken while a form was open).
+                if (workspaceMode === "create") return;
                 setHistoryFilter("all");
-                // Select first protocol of new patient if available
-                const firstPatProto = protocols.find(p => p.patientId === e.target.value);
+                const firstPatProto = protocols.find(p => p.patientId === newPatId);
                 if (firstPatProto) {
                   setActiveProto(firstPatProto);
                   setWorkspaceMode("view");
@@ -512,7 +570,7 @@ export default function ProtocolsModule({ patients, userRole, userPermissions }:
               </h3>
               
               <button
-                onClick={() => setWorkspaceMode("create")}
+                onClick={handleStartNew}
                 className="text-[10px] font-black text-[#1070ca] hover:text-blue-700 bg-blue-50 hover:bg-blue-100 px-2.5 py-1.5 rounded-lg transition-all flex items-center gap-0.5 cursor-pointer border border-blue-100"
               >
                 <PlusCircle className="h-3.5 w-3.5" /> Novo
@@ -591,6 +649,17 @@ export default function ProtocolsModule({ patients, userRole, userPermissions }:
                         Por: {proto.profissional.split(" ")[0]}
                       </span>
                       <div className="flex gap-2">
+                        {canCreate && (
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleStartEdit(proto);
+                            }}
+                            className="text-[9.5px] font-black uppercase tracking-wider text-slate-500 hover:text-[#1070ca] hover:underline flex items-center gap-0.5 cursor-pointer"
+                          >
+                            <Pencil className="h-3 w-3" /> Editar
+                          </button>
+                        )}
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
@@ -653,10 +722,10 @@ export default function ProtocolsModule({ patients, userRole, userPermissions }:
               </button>
               
               <button
-                onClick={() => setWorkspaceMode("create")}
+                onClick={handleStartNew}
                 className={`px-4 py-2 rounded-xl text-xs font-black uppercase tracking-wider transition flex items-center gap-1.5 cursor-pointer ${
-                  workspaceMode === "create" 
-                    ? "bg-[#1070ca] text-white shadow-xs" 
+                  workspaceMode === "create" && !editingProtocol
+                    ? "bg-[#1070ca] text-white shadow-xs"
                     : "bg-slate-50 text-slate-500 hover:bg-slate-100"
                 }`}
               >
@@ -665,12 +734,22 @@ export default function ProtocolsModule({ patients, userRole, userPermissions }:
             </div>
 
             {workspaceMode === "view" && activeProto && (
-              <button
-                onClick={() => setIsViewingPrint(true)}
-                className="px-3.5 py-1.5 bg-slate-50 border border-slate-200 hover:bg-slate-100 text-[#1070ca] rounded-xl text-xs font-bold flex items-center gap-1.5 cursor-pointer transition shadow-3xs"
-              >
-                <Printer className="h-3.5 w-3.5" /> Imprimir / PDF
-              </button>
+              <div className="flex gap-2">
+                {canCreate && (
+                  <button
+                    onClick={() => handleStartEdit(activeProto)}
+                    className="px-3.5 py-1.5 bg-slate-50 border border-slate-200 hover:bg-slate-100 text-slate-700 rounded-xl text-xs font-bold flex items-center gap-1.5 cursor-pointer transition shadow-3xs"
+                  >
+                    <Pencil className="h-3.5 w-3.5" /> Editar
+                  </button>
+                )}
+                <button
+                  onClick={() => setIsViewingPrint(true)}
+                  className="px-3.5 py-1.5 bg-slate-50 border border-slate-200 hover:bg-slate-100 text-[#1070ca] rounded-xl text-xs font-bold flex items-center gap-1.5 cursor-pointer transition shadow-3xs"
+                >
+                  <Printer className="h-3.5 w-3.5" /> Imprimir / PDF
+                </button>
+              </div>
             )}
           </div>
 
@@ -879,21 +958,38 @@ export default function ProtocolsModule({ patients, userRole, userPermissions }:
               <div className="border-b border-slate-100 pb-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                 <div>
                   <h3 className="font-display font-black text-slate-800 text-xs uppercase tracking-widest flex items-center gap-1.5">
-                    <PlusCircle className="h-4.5 w-4.5 text-[#1070ca]" /> Preencher Registro Técnico
+                    {editingProtocol ? (
+                      <><Pencil className="h-4.5 w-4.5 text-[#1070ca]" /> Editando Protocolo Existente</>
+                    ) : (
+                      <><PlusCircle className="h-4.5 w-4.5 text-[#1070ca]" /> Preencher Registro Técnico</>
+                    )}
                   </h3>
-                  <p className="text-[10.5px] text-slate-400 font-semibold mt-0.5">Selecione o tipo de formulário e preencha as métricas estruturadas do paciente.</p>
+                  <p className="text-[10.5px] text-slate-400 font-semibold mt-0.5">
+                    {editingProtocol
+                      ? "Ajuste as respostas ou troque o paciente no seletor ao lado — as alterações substituem o registro original."
+                      : "Selecione o tipo de formulário e preencha as métricas estruturadas do paciente."}
+                  </p>
                 </div>
 
-                {/* Horizontal selector for Type of Protocol */}
-                <div className="flex flex-wrap gap-1.5">
+                <div className="flex flex-wrap items-center gap-1.5">
+                  {editingProtocol && (
+                    <button
+                      type="button"
+                      onClick={handleCancelEdit}
+                      className="px-2.5 py-1.5 text-[9px] font-black uppercase rounded-lg border border-slate-200 bg-slate-50 text-slate-500 hover:bg-slate-100 cursor-pointer transition-all flex items-center gap-1"
+                    >
+                      <XIcon className="h-3 w-3" /> Cancelar Edição
+                    </button>
+                  )}
+                  {/* Horizontal selector for Type of Protocol */}
                   {Object.values(ProtocolType).map((type) => (
                     <button
                       key={type}
                       type="button"
                       onClick={() => handleSelectProtocolType(type)}
                       className={`px-3 py-1.5 text-[9px] font-black uppercase rounded-lg border cursor-pointer transition-all ${
-                        selectedProtoType === type 
-                          ? "bg-[#1070ca] text-white border-[#1070ca] shadow-xs" 
+                        selectedProtoType === type
+                          ? "bg-[#1070ca] text-white border-[#1070ca] shadow-xs"
                           : "bg-slate-50 text-slate-500 border-slate-200 hover:bg-slate-100"
                       }`}
                     >
@@ -1475,7 +1571,8 @@ export default function ProtocolsModule({ patients, userRole, userPermissions }:
                     type="submit"
                     className="w-full py-3 bg-[#1070ca] hover:bg-blue-700 text-white rounded-2xl text-xs font-black uppercase tracking-wider transition-all shadow-md shadow-blue-500/10 flex items-center justify-center gap-1.5 cursor-pointer"
                   >
-                    <Save className="h-4.5 w-4.5" /> Salvar Protocolo Oficial no Prontuário
+                    <Save className="h-4.5 w-4.5" />
+                    {editingProtocol ? "Salvar Alterações no Protocolo" : "Salvar Protocolo Oficial no Prontuário"}
                   </button>
                 )}
               </form>

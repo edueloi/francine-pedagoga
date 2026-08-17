@@ -52,7 +52,9 @@ export function useProtocols(filters?: { patientId?: string }) {
         body: JSON.stringify(protocolToApi(payload)),
       });
       if (!res.ok) throw new Error("Falha ao atualizar protocolo");
+      const row = await res.json();
       await reloadProtocols();
+      return protocolFromApi(row);
     },
     [authFetch, reloadProtocols]
   );
