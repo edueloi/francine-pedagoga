@@ -1,5 +1,5 @@
-﻿import React, { useState } from "react";
-import { User, Calendar, Heart, PlusCircle, Search, Trash2, Filter, Upload, Paperclip, ChevronRight, History, FileText, CheckSquare, Save, CreditCard, Users, Pencil, Loader2, Share2 } from "lucide-react";
+﻿import React, { useState, useMemo, useEffect } from "react";
+import { User, Calendar, Heart, PlusCircle, Search, Trash2, Filter, Upload, Paperclip, ChevronRight, History, FileText, CheckSquare, Save, CreditCard, Users, Pencil, Loader2, Share2, LayoutGrid, List as ListIcon } from "lucide-react";
 import { Patient, PatientStatus, Anamnese, TimelineItem, UserRole, UserPermissions } from "../types";
 import { useAuth } from "../contexts/AuthContext";
 import { patientFromApi, patientToApi } from "../lib/apiMappers";
@@ -8,7 +8,10 @@ import { PatientFichaAcompanhamentoTab } from "./Patient/PatientFichaAcompanhame
 import { useAnamneses } from "../hooks/useAnamneses";
 import { useTimeline } from "../hooks/useTimeline";
 import { useInsuranceProviders } from "../hooks/useInsuranceProviders";
+import { useUserPreferences } from "../hooks/useUserPreferences";
 import { useToast, ConfirmModal } from "./UI";
+import { GridTable, Column } from "./UI/GridTable";
+import { Pagination } from "./UI/Pagination";
 
 interface PatientsModuleProps {
   patients: Patient[];
@@ -44,6 +47,38 @@ export default function PatientsModule({
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("todos");
   const [diagFilter, setDiagFilter] = useState<string>("todos");
+
+  // View mode (cartão x lista) and paginação — a escolha do usuário é lembrada
+  // no backend (preferences), não só nesta sessão/aba.
+  const { preferences, loaded: preferencesLoaded, setPreference } = useUserPreferences();
+  const [viewMode, setViewMode] = useState<"cards" | "list">("cards");
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(12);
+
+  // Aplica a preferência salva assim que ela chega (uma vez só — depois disso o
+  // usuário controla via toggle/paginação, sem o valor do servidor "puxar de volta").
+  useEffect(() => {
+    if (!preferencesLoaded) return;
+    if (preferences.patientsViewMode === "cards" || preferences.patientsViewMode === "list") {
+      setViewMode(preferences.patientsViewMode);
+    }
+    if (typeof preferences.patientsPageSize === "number" && preferences.patientsPageSize > 0) {
+      setItemsPerPage(preferences.patientsPageSize);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [preferencesLoaded]);
+
+  const handleChangeViewMode = (mode: "cards" | "list") => {
+    setViewMode(mode);
+    setCurrentPage(1);
+    setPreference("patientsViewMode", mode);
+  };
+
+  const handleChangePageSize = (size: number) => {
+    setItemsPerPage(size);
+    setCurrentPage(1);
+    setPreference("patientsPageSize", size);
+  };
 
   // Wizard (criação/edição de paciente)
   const [wizardOpen, setWizardOpen] = useState(false);
@@ -431,6 +466,16 @@ export default function PatientsModule({
     setTimelineDesc("");
   };
 
+  // Formata datas com segurança — dataInicio/dataNascimento podem vir vazias
+  // (ex: cadastro incompleto), e "Invalid Date" não deve aparecer na tela.
+  const formatDateSafe = (value?: string | null) => {
+    if (!value) return "Não informado";
+    const parsed = new Date(value);
+    return isNaN(parsed.getTime()) ? "Não informado" : parsed.toLocaleDateString("pt-BR");
+  };
+
+  const formatAge = (pat: Patient) => (pat.idade > 0 ? `${pat.idade} anos` : "Idade não informada");
+
   // Filter computation
   const filteredPatients = patients.filter(p => {
     const matchesSearch = p.nome.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -449,6 +494,15 @@ export default function PatientsModule({
 
     return matchesSearch && matchesStatus && matchesDiag;
   });
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchQuery, statusFilter, diagFilter, itemsPerPage]);
+
+  const currentPatients = useMemo(
+    () => filteredPatients.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage),
+    [filteredPatients, currentPage, itemsPerPage]
+  );
 
   const selectedAnamnese = selectedPat ? anamneses.find(a => a.patientId === selectedPat.id) : null;
   const selectedTimeline = selectedPat ? timeline.filter(t => t.patientId === selectedPat.id).sort((a,b) => b.data.localeCompare(a.data)) : [];
@@ -548,73 +602,198 @@ export default function PatientsModule({
                 <option value="tdah">TDAH</option>
                 <option value="dislexia">Dislexia</option>
               </select>
+
+              {/* Toggle Cartão / Lista — a escolha fica salva no perfil do usuário */}
+              <div className="flex items-center rounded-xl border border-slate-200 bg-slate-50 p-1 shrink-0">
+                <button
+                  type="button"
+                  onClick={() => handleChangeViewMode("cards")}
+                  aria-label="Visualizar em cartões"
+                  title="Visualizar em cartões"
+                  className={`h-8 w-8 flex items-center justify-center rounded-lg transition-all cursor-pointer ${viewMode === "cards" ? "bg-white text-[#1070ca] shadow-xs" : "text-slate-400 hover:text-slate-600"}`}
+                >
+                  <LayoutGrid className="h-4 w-4" />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleChangeViewMode("list")}
+                  aria-label="Visualizar em lista"
+                  title="Visualizar em lista"
+                  className={`h-8 w-8 flex items-center justify-center rounded-lg transition-all cursor-pointer ${viewMode === "list" ? "bg-white text-[#1070ca] shadow-xs" : "text-slate-400 hover:text-slate-600"}`}
+                >
+                  <ListIcon className="h-4 w-4" />
+                </button>
+              </div>
             </div>
           </div>
 
-          {/* Patients Grid */}
-          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
-            {filteredPatients.map((pat) => (
-              <div
-                key={pat.id}
-                onClick={() => {
-                  setSelectedPat(pat);
-                  setActiveTab("detail");
-                }}
-                className={`p-5 rounded-3xl border transition text-left flex flex-col justify-between h-56 cursor-pointer relative ${selectedPat?.id === pat.id ? "bg-blue-50/20 border-[#1070ca]/50 shadow-md" : "bg-white border-slate-100 hover:border-[#1070ca]/30 hover:shadow-2xs"}`}
-              >
-                {/* Status Dot */}
-                <div className="absolute top-4 right-4 flex items-center gap-1.5">
-                  <span className={`h-2.5 w-2.5 rounded-full ${pat.status === "Ativo" ? "bg-blue-500" : pat.status === "Pausado" ? "bg-amber-400" : "bg-slate-300"}`} />
-                  <span className="text-[9px] font-black text-slate-400 uppercase font-mono tracking-wider">{pat.status}</span>
-                </div>
+          {/* Patients Grid (cartões) */}
+          {viewMode === "cards" && (
+            <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-5">
+              {currentPatients.map((pat) => (
+                <div
+                  key={pat.id}
+                  onClick={() => {
+                    setSelectedPat(pat);
+                    setActiveTab("detail");
+                  }}
+                  className={`group p-5 rounded-3xl border transition-all text-left flex flex-col justify-between h-60 cursor-pointer relative ${selectedPat?.id === pat.id ? "bg-blue-50/30 border-[#1070ca]/50 shadow-md" : "bg-white border-slate-100 hover:border-[#1070ca]/30 hover:shadow-lg hover:-translate-y-0.5"}`}
+                >
+                  {/* Status Badge */}
+                  <div className="absolute top-4 right-4">
+                    <span className={`flex items-center gap-1.5 text-[9px] font-black uppercase font-mono tracking-wider px-2 py-1 rounded-full ${
+                      pat.status === "Ativo" ? "bg-blue-50 text-[#1070ca]" : pat.status === "Pausado" ? "bg-amber-50 text-amber-600" : "bg-slate-100 text-slate-400"
+                    }`}>
+                      <span className={`h-1.5 w-1.5 rounded-full ${pat.status === "Ativo" ? "bg-blue-500" : pat.status === "Pausado" ? "bg-amber-400" : "bg-slate-300"}`} />
+                      {pat.status}
+                    </span>
+                  </div>
 
-                <div className="space-y-3">
-                  <div className="flex items-center gap-3">
-                    <div className="h-10 w-10 rounded-full bg-blue-100 text-[#1070ca] font-display font-black flex items-center justify-center text-sm">
-                      {pat.nome.charAt(0)}
+                  <div className="space-y-3">
+                    <div className="flex items-center gap-3">
+                      <div className="h-11 w-11 rounded-2xl bg-gradient-to-br from-[#1070ca] to-[#0b5194] text-white font-display font-black flex items-center justify-center text-sm shadow-sm shrink-0">
+                        {pat.nome.charAt(0).toUpperCase()}
+                      </div>
+                      <div className="min-w-0">
+                        <h4 className="font-display font-extrabold text-sm text-slate-800 leading-tight truncate">{pat.nome}</h4>
+                        <p className="text-[11px] text-slate-400 mt-1 flex items-center gap-1 font-sans font-medium truncate">
+                          <Calendar className="h-3 w-3 text-[#1070ca] shrink-0" /> {formatAge(pat)}{pat.anoSerie ? ` • ${pat.anoSerie}` : ""}
+                        </p>
+                      </div>
                     </div>
-                    <div>
-                      <h4 className="font-display font-extrabold text-sm text-slate-800 leading-tight">{pat.nome}</h4>
-                      <p className="text-[11px] text-slate-400 mt-1 flex items-center gap-1 font-sans font-medium">
-                        <Calendar className="h-3 w-3 text-[#1070ca]" /> {pat.idade} anos • {pat.anoSerie}
-                      </p>
+
+                    <div className="space-y-1.5 border-t border-slate-100 pt-2.5">
+                      <p className="text-[11px] text-slate-500 font-medium truncate"><strong className="text-slate-700 font-extrabold">Resp:</strong> {pat.responsavel || "Não informado"}</p>
+                      <p className="text-[11px] text-slate-500 font-medium truncate"><strong className="text-slate-700 font-extrabold">Escola:</strong> {pat.escola || "Não informada"}</p>
+                      {pat.diagnostico && (
+                        <p className="text-[10px] font-black text-[#1070ca] bg-blue-50 px-2 py-0.5 rounded-md inline-block max-w-full truncate font-mono uppercase tracking-wider">
+                          {pat.diagnostico}
+                        </p>
+                      )}
                     </div>
                   </div>
 
-                  <div className="space-y-1.5 border-t border-slate-100 pt-2.5">
-                    <p className="text-[11px] text-slate-500 font-medium"><strong className="text-slate-700 font-extrabold">Resp:</strong> {pat.responsavel}</p>
-                    <p className="text-[11px] text-slate-500 font-medium"><strong className="text-slate-700 font-extrabold">Escola:</strong> {pat.escola}</p>
-                    <p className="text-[10px] font-black text-[#1070ca] bg-blue-100/30 px-2 py-0.5 rounded-md inline-block max-w-full truncate font-mono uppercase tracking-wider">
-                      {pat.diagnostico}
-                    </p>
+                  <div className="flex justify-between items-center pt-3 border-t border-slate-100">
+                    <span className="text-[9px] font-mono font-bold text-slate-400">Início: {formatDateSafe(pat.dataInicio)}</span>
+                    <div className="flex items-center gap-2">
+                      {canDelete && (
+                        <button
+                          onClick={(e) => handleDeletePatient(pat.id, e)}
+                          className="text-slate-300 hover:text-red-500 transition p-1 cursor-pointer"
+                          title="Arquivar prontuário"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </button>
+                      )}
+                      <ChevronRight className="h-4 w-4 text-[#1070ca] transition-transform group-hover:translate-x-0.5" />
+                    </div>
                   </div>
                 </div>
+              ))}
 
-                <div className="flex justify-between items-center pt-3 border-t border-slate-100">
-                  <span className="text-[9px] font-mono font-bold text-slate-400">Início: {new Date(pat.dataInicio).toLocaleDateString('pt-BR')}</span>
-                  <div className="flex items-center gap-2">
-                    {canDelete && (
-                      <button
-                        onClick={(e) => handleDeletePatient(pat.id, e)}
-                        className="text-slate-300 hover:text-red-500 transition p-1"
-                        title="Arquivar prontuário"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </button>
-                    )}
-                    <ChevronRight className="h-4 w-4 text-[#1070ca]" />
-                  </div>
+              {filteredPatients.length === 0 && (
+                <div className="col-span-full py-16 text-center text-gray-400 space-y-2">
+                  <p className="text-sm font-semibold">Nenhum prontuário corresponde aos critérios.</p>
+                  <p className="text-xs">Tente redefinir a busca inteligente ou cadastrar um novo paciente.</p>
                 </div>
-              </div>
-            ))}
+              )}
+            </div>
+          )}
 
-            {filteredPatients.length === 0 && (
-              <div className="col-span-full py-16 text-center text-gray-400 space-y-2">
-                <p className="text-sm font-semibold">Nenhum prontuário corresponde aos critérios.</p>
-                <p className="text-xs">Tente redefinir a busca inteligente ou cadastrar um novo paciente.</p>
-              </div>
-            )}
-          </div>
+          {/* Patients List (tabela) */}
+          {viewMode === "list" && (
+            <GridTable<Patient>
+              data={currentPatients}
+              keyExtractor={(pat) => pat.id}
+              emptyMessage="Nenhum prontuário corresponde aos critérios."
+              onRowClick={(pat) => {
+                setSelectedPat(pat);
+                setActiveTab("detail");
+              }}
+              renderMobileItem={(pat) => (
+                <div className="flex items-center gap-3 w-full min-w-0">
+                  <div className="h-10 w-10 rounded-2xl bg-gradient-to-br from-[#1070ca] to-[#0b5194] text-white font-display font-black flex items-center justify-center text-sm shrink-0">
+                    {pat.nome.charAt(0).toUpperCase()}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="font-bold text-sm text-slate-800 truncate">{pat.nome}</p>
+                    <p className="text-[11px] text-slate-400 truncate">{formatAge(pat)} • {pat.responsavel || "Resp. não informado"}</p>
+                  </div>
+                  {canDelete && (
+                    <button
+                      onClick={(e) => handleDeletePatient(pat.id, e)}
+                      className="text-slate-300 hover:text-red-500 transition p-1 shrink-0 cursor-pointer"
+                      title="Arquivar prontuário"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </button>
+                  )}
+                </div>
+              )}
+              columns={[
+                {
+                  header: "Paciente",
+                  render: (pat) => (
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <div className="h-8 w-8 rounded-xl bg-gradient-to-br from-[#1070ca] to-[#0b5194] text-white font-display font-black flex items-center justify-center text-[11px] shrink-0">
+                        {pat.nome.charAt(0).toUpperCase()}
+                      </div>
+                      <span className="font-bold text-slate-800 truncate">{pat.nome}</span>
+                    </div>
+                  ),
+                },
+                { header: "Idade", render: (pat) => <span className="whitespace-nowrap">{formatAge(pat)}</span> },
+                { header: "Responsável", render: (pat) => pat.responsavel || "Não informado" },
+                { header: "Escola", render: (pat) => pat.escola || "Não informada" },
+                {
+                  header: "Diagnóstico",
+                  render: (pat) => pat.diagnostico ? (
+                    <span className="text-[10px] font-black text-[#1070ca] bg-blue-50 px-2 py-0.5 rounded-md font-mono uppercase tracking-wider">{pat.diagnostico}</span>
+                  ) : "—",
+                },
+                {
+                  header: "Status",
+                  render: (pat) => (
+                    <span className={`inline-flex items-center gap-1.5 text-[9px] font-black uppercase font-mono tracking-wider px-2 py-1 rounded-full ${
+                      pat.status === "Ativo" ? "bg-blue-50 text-[#1070ca]" : pat.status === "Pausado" ? "bg-amber-50 text-amber-600" : "bg-slate-100 text-slate-400"
+                    }`}>
+                      <span className={`h-1.5 w-1.5 rounded-full ${pat.status === "Ativo" ? "bg-blue-500" : pat.status === "Pausado" ? "bg-amber-400" : "bg-slate-300"}`} />
+                      {pat.status}
+                    </span>
+                  ),
+                },
+                { header: "Início", render: (pat) => formatDateSafe(pat.dataInicio), hideOnMobile: true },
+                ...(canDelete
+                  ? [{
+                      header: "",
+                      className: "text-right",
+                      render: (pat: Patient) => (
+                        <div className="flex justify-end" onClick={(e) => e.stopPropagation()}>
+                          <button
+                            onClick={(e) => handleDeletePatient(pat.id, e)}
+                            className="text-slate-300 hover:text-red-500 transition p-1 cursor-pointer"
+                            title="Arquivar prontuário"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </button>
+                        </div>
+                      ),
+                    } as Column<Patient>]
+                  : []),
+              ]}
+            />
+          )}
+
+          {filteredPatients.length > 0 && (
+            <Pagination
+              total={filteredPatients.length}
+              page={currentPage}
+              pageSize={itemsPerPage}
+              onPageChange={setCurrentPage}
+              onPageSizeChange={handleChangePageSize}
+              showPageSizeSelector
+            />
+          )}
         </div>
       )}
 
