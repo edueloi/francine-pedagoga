@@ -1,5 +1,5 @@
 ﻿import React, { useState, useMemo, useEffect } from "react";
-import { User, Calendar, Heart, PlusCircle, Search, Trash2, Filter, Upload, Paperclip, ChevronRight, History, FileText, CheckSquare, Save, CreditCard, Users, Pencil, Loader2, Share2, LayoutGrid, List as ListIcon } from "lucide-react";
+import { User, Calendar, Heart, PlusCircle, Search, Trash2, Filter, Upload, Paperclip, ChevronRight, History, FileText, CheckSquare, Save, CreditCard, Users, Pencil, Loader2, Share2, LayoutGrid, List as ListIcon, Brain, ClipboardList, GraduationCap, Phone, Mail, Wallet, IdCard } from "lucide-react";
 import { Patient, PatientStatus, Anamnese, TimelineItem, UserRole, UserPermissions } from "../types";
 import { useAuth } from "../contexts/AuthContext";
 import { patientFromApi, patientToApi } from "../lib/apiMappers";
@@ -879,19 +879,38 @@ export default function PatientsModule({
                   <option value="Pausado">Pausado</option>
                   <option value="Encerrado">Encerrado</option>
                 </select>
-                <span className="text-xs text-slate-500 bg-slate-100 px-2.5 py-1.5 rounded-lg font-mono font-bold flex items-center">Cadastrado: {selectedPat.dataInicio}</span>
+                <span className="text-xs text-slate-500 bg-slate-100 px-2.5 py-1.5 rounded-lg font-mono font-bold flex items-center">Cadastrado: {formatDateSafe(selectedPat.dataInicio)}</span>
               </div>
 
-              <div className="border-t border-slate-100 pt-4 space-y-3 text-left text-xs font-medium text-slate-600">
-                <p className="flex justify-between border-b border-slate-50 pb-1.5"><strong className="text-slate-400 font-extrabold">Idade atual:</strong> <span className="text-slate-800 font-bold">{selectedPat.idade} anos ({new Date(selectedPat.dataNascimento).toLocaleDateString('pt-BR')})</span></p>
-                <p className="flex justify-between border-b border-slate-50 pb-1.5"><strong className="text-slate-400 font-extrabold">Responsável:</strong> <span className="text-slate-800 font-bold">{selectedPat.responsavel} {selectedPat.responsavelParentesco ? `(${selectedPat.responsavelParentesco})` : ""}</span></p>
-                <p className="flex justify-between border-b border-slate-50 pb-1.5"><strong className="text-slate-400 font-extrabold">Telefone principal:</strong> <span className="text-slate-800 font-bold">{selectedPat.telefone}</span></p>
+              <div className="border-t border-slate-100 pt-4 space-y-1.5 text-left text-xs font-medium text-slate-600">
+                <div className="flex items-center gap-2.5 py-1.5">
+                  <Calendar className="h-3.5 w-3.5 text-slate-300 shrink-0" />
+                  <span className="text-slate-800 font-bold">{formatAge(selectedPat)}</span>
+                  <span className="text-slate-400">({formatDateSafe(selectedPat.dataNascimento)})</span>
+                </div>
+                <div className="flex items-center gap-2.5 py-1.5">
+                  <Users className="h-3.5 w-3.5 text-slate-300 shrink-0" />
+                  <span className="text-slate-800 font-bold truncate">{selectedPat.responsavel || "Não informado"}</span>
+                  {selectedPat.responsavelParentesco && <span className="text-slate-400 shrink-0">({selectedPat.responsavelParentesco})</span>}
+                </div>
+                <div className="flex items-center gap-2.5 py-1.5">
+                  <Phone className="h-3.5 w-3.5 text-slate-300 shrink-0" />
+                  <span className="text-slate-800 font-bold">{selectedPat.telefone || "Não informado"}</span>
+                </div>
                 {selectedPat.email && (
-                  <p className="flex justify-between border-b border-slate-50 pb-1.5"><strong className="text-slate-400 font-extrabold">E-mail:</strong> <span className="text-slate-800 font-bold truncate max-w-[150px]">{selectedPat.email}</span></p>
+                  <div className="flex items-center gap-2.5 py-1.5">
+                    <Mail className="h-3.5 w-3.5 text-slate-300 shrink-0" />
+                    <span className="text-slate-800 font-bold truncate">{selectedPat.email}</span>
+                  </div>
                 )}
-                <p className="flex justify-between border-b border-slate-50 pb-1.5"><strong className="text-slate-400 font-extrabold">Pagamento:</strong> <span className="text-slate-800 font-black text-blue-700">{selectedPat.tipoPagamento || "Particular"}</span></p>
-                <p className="flex justify-between border-b border-slate-50 pb-1.5"><strong className="text-slate-400 font-extrabold">Convênio:</strong> <span className="text-slate-800 font-bold truncate max-w-[150px]">{selectedPat.convenio}</span></p>
-                <div className="p-3 bg-red-50/50 border border-red-100 rounded-2xl mt-1">
+                <div className="flex items-center gap-2.5 py-1.5">
+                  <Wallet className="h-3.5 w-3.5 text-slate-300 shrink-0" />
+                  <span className="text-[#1070ca] font-black">{selectedPat.tipoPagamento || "Particular"}</span>
+                  {selectedPat.tipoPagamento === "Convênio" && selectedPat.convenio && (
+                    <span className="text-slate-400 truncate">— {selectedPat.convenio}</span>
+                  )}
+                </div>
+                <div className="p-3 bg-red-50/50 border border-red-100 rounded-2xl mt-2">
                   <p className="font-black text-red-800 uppercase tracking-wider text-[9px] font-mono">Medicamentos de Uso Contínuo:</p>
                   <p className="text-[11px] text-red-900 mt-1 font-bold">{selectedPat.medicamentos || "Nenhum"}</p>
                 </div>
@@ -903,25 +922,28 @@ export default function PatientsModule({
           <div className="lg:col-span-8 space-y-6">
             <div className="bg-white rounded-3xl border border-slate-100 shadow-xs p-6">
               {/* Inner Tabs navigation */}
-              <div className="flex border-b border-slate-100 pb-3 mb-6 overflow-x-auto gap-1">
+              <div className="flex border-b border-slate-100 pb-3 mb-6 overflow-x-auto gap-1.5">
                 {[
-                  { id: "cadastro", label: "📋 Cadastro & Finanças" },
-                  { id: "anamnese", label: "🧠 Anamnese" },
-                  { id: "documentos", label: "📎 Documentos & Laudos" },
-                  { id: "timeline", label: "📈 Evoluções & Linha do Tempo" },
-                  { id: "ficha", label: "📝 Ficha de Acompanhamento" }
-                ].map((tab) => (
-                  <button
-                    key={tab.id}
-                    onClick={() => {
-                      setDetailTab(tab.id as any);
-                      setEditingAnamnese(null);
-                    }}
-                    className={`px-4 py-2 text-xs font-black uppercase tracking-wider rounded-lg transition-all cursor-pointer whitespace-nowrap ${detailTab === tab.id ? "bg-[#1070ca] text-white shadow-xs" : "text-slate-400 hover:text-slate-700 hover:bg-slate-50"}`}
-                  >
-                    {tab.label}
-                  </button>
-                ))}
+                  { id: "cadastro", label: "Cadastro & Finanças", icon: IdCard },
+                  { id: "anamnese", label: "Anamnese", icon: Brain },
+                  { id: "documentos", label: "Documentos & Laudos", icon: Paperclip },
+                  { id: "timeline", label: "Evoluções & Linha do Tempo", icon: History },
+                  { id: "ficha", label: "Ficha de Acompanhamento", icon: ClipboardList },
+                ].map((tab) => {
+                  const TabIcon = tab.icon;
+                  return (
+                    <button
+                      key={tab.id}
+                      onClick={() => {
+                        setDetailTab(tab.id as any);
+                        setEditingAnamnese(null);
+                      }}
+                      className={`flex items-center gap-1.5 px-4 py-2 text-xs font-black uppercase tracking-wider rounded-lg transition-all cursor-pointer whitespace-nowrap ${detailTab === tab.id ? "bg-[#1070ca] text-white shadow-xs" : "text-slate-400 hover:text-slate-700 hover:bg-slate-50"}`}
+                    >
+                      <TabIcon className="h-3.5 w-3.5" /> {tab.label}
+                    </button>
+                  );
+                })}
               </div>
 
               {/* TAB 1: CADASTRO COMPLETO & FINANCEIRO */}
@@ -941,7 +963,7 @@ export default function PatientsModule({
                       </p>
                       <div className="text-xs space-y-2 font-semibold text-slate-600">
                         <p><strong className="text-slate-800 font-extrabold">Nome Completo:</strong> {selectedPat.nome}</p>
-                        <p><strong className="text-slate-800 font-extrabold">Data Nascimento:</strong> {new Date(selectedPat.dataNascimento).toLocaleDateString('pt-BR')} ({selectedPat.idade} anos)</p>
+                        <p><strong className="text-slate-800 font-extrabold">Data Nascimento:</strong> {formatDateSafe(selectedPat.dataNascimento)} ({formatAge(selectedPat)})</p>
                         <p><strong className="text-slate-800 font-extrabold">Diagnóstico / Queixa:</strong> <span className="bg-blue-50 text-blue-700 border border-blue-100 px-2 py-0.5 rounded text-[11px] inline-block font-extrabold mt-0.5">{selectedPat.diagnostico} ({selectedPat.cid || "N/A"})</span></p>
                         <p><strong className="text-slate-800 font-extrabold">Médico Responsável:</strong> {selectedPat.medico || "Não informado"}</p>
                       </div>
@@ -950,7 +972,7 @@ export default function PatientsModule({
                     {/* Bento Box: Dados Educacionais */}
                     <div className="bg-slate-50/50 border border-slate-100 rounded-2xl p-4 space-y-3">
                       <p className="text-[10px] font-black uppercase tracking-wider text-slate-400 flex items-center gap-1">
-                        🎨 Informações Escolares
+                        <GraduationCap className="h-3 w-3 text-[#1070ca]" /> Informações Escolares
                       </p>
                       <div className="text-xs space-y-2 font-semibold text-slate-600">
                         <p><strong className="text-slate-800 font-extrabold">Instituição de Ensino:</strong> {selectedPat.escola || "Não informada"}</p>
