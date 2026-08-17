@@ -313,6 +313,20 @@ async function migrate() {
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
   `);
 
+  // ---- CLINICAL REPORTS (Laudos & Relatórios) ----
+  await conn.query(`
+    CREATE TABLE IF NOT EXISTS clinical_reports (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      patient_id INT NOT NULL,
+      tipo VARCHAR(255) NOT NULL,
+      titulo VARCHAR(255) NOT NULL,
+      conteudo LONGTEXT NOT NULL,
+      data_geracao DATE NOT NULL,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (patient_id) REFERENCES patients(id) ON DELETE CASCADE
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+  `);
+
   // ---- PEI GOALS ----
   await conn.query(`
     CREATE TABLE IF NOT EXISTS pei_goals (

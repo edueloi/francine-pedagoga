@@ -91,6 +91,15 @@ export interface Protocol {
   observacoes: string;
 }
 
+export interface ClinicalReport {
+  id: string;
+  patientId: string;
+  tipo: string;
+  titulo: string;
+  conteudo: string;
+  dataGeracao: string;
+}
+
 export interface Session {
   id: string;
   patientId: string;

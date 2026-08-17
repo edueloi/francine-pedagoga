@@ -10,6 +10,7 @@ import {
   AgendaItem,
   Protocol,
   PeiGoal,
+  ClinicalReport,
   Activity,
   TimelineItem,
   AuditLog,
@@ -289,6 +290,27 @@ export function protocolToApi(protocol: Partial<Protocol>): Record<string, any> 
     profissional: protocol.profissional ?? null,
     conteudo: JSON.stringify(protocol.conteudo ?? {}),
     observacoes: protocol.observacoes ?? null,
+  };
+}
+
+export function clinicalReportFromApi(row: any): ClinicalReport {
+  return {
+    id: String(row.id),
+    patientId: String(row.patient_id),
+    tipo: row.tipo,
+    titulo: row.titulo,
+    conteudo: row.conteudo ?? "",
+    dataGeracao: row.data_geracao ?? "",
+  };
+}
+
+export function clinicalReportToApi(report: Partial<ClinicalReport>): Record<string, any> {
+  return {
+    patient_id: report.patientId,
+    tipo: report.tipo,
+    titulo: report.titulo,
+    conteudo: report.conteudo ?? "",
+    data_geracao: report.dataGeracao || null,
   };
 }
 

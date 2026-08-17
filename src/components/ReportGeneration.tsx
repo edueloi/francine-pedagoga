@@ -1,17 +1,9 @@
 import React, { useState, useEffect } from "react";
-import { Printer, Save, RefreshCw, Sparkles, Layers, Info, FileText } from "lucide-react";
+import { Printer, Save, RefreshCw, Sparkles, Layers, Info, FileText, Trash2 } from "lucide-react";
 import { Patient, UserRole, UserPermissions } from "../types";
 import { Combobox, ConfirmModal, useToast } from "./UI";
 import { useClinicSettings } from "../hooks/useClinicSettings";
-
-interface Report {
-  id: string;
-  patientId: string;
-  patientNome: string;
-  titulo: string;
-  dataGeracao: string;
-  conteudo: string;
-}
+import { useClinicalReports } from "../hooks/useClinicalReports";
 
 interface ReportProps {
   patients: Patient[];
@@ -29,11 +21,15 @@ export default function ReportGeneration({ patients, userRole, userPermissions }
   const toast = useToast();
   const { settings: clinic } = useClinicSettings();
   const canCreate = userPermissions ? userPermissions.reports.criar : (userRole !== UserRole.RESTRICTED);
+  const { reports: reportsArchive, loading: archiveLoading, error: archiveError, createReport, deleteReport } = useClinicalReports();
 
   const [selectedPatId, setSelectedPatId] = useState<string>(patients[0]?.id || "");
   const [reportType, setReportType] = useState<string>("Parecer Clínico para Neuropediatra");
   const [showInfo, setShowInfo] = useState(false);
   const [confirmArchiveOpen, setConfirmArchiveOpen] = useState(false);
+  const [isArchiving, setIsArchiving] = useState(false);
+  const [reportPendingDelete, setReportPendingDelete] = useState<string | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   // Interactive checklist parameters for instant auto-generation (no AI, 100% automated & mastigado)
   const [focosAtencao, setFocosAtencao] = useState<string[]>([
@@ -57,17 +53,6 @@ export default function ReportGeneration({ patients, userRole, userPermissions }
   const [additionalNotes, setAdditionalNotes] = useState("");
   const [generatedContent, setGeneratedContent] = useState("");
   const [isGenerating, setIsGenerating] = useState(false);
-
-  const [reportsArchive, setReportsArchive] = useState<Report[]>([
-    {
-      id: "rep-1",
-      patientId: "pat-1",
-      patientNome: "Lucas Silva",
-      titulo: "Parecer Técnico de Adaptação Curricular",
-      dataGeracao: "2026-06-15",
-      conteudo: "Ao Colégio Integração\nA/C Coordenação Pedagógica\n\nIdentificamos necessidade de adaptações para Lucas Silva:\n1. Provas em ambiente isolado de estímulos;\n2. Flexibilização de tempo de entrega de avaliações em 50%;\n3. Uso de timer visual para transições de disciplinas;\n4. Intervalos curtos de 2 minutos para regulação psicomotora."
-    }
-  ]);
 
   const selectedPat = patients.find(p => p.id === selectedPatId);
 
@@ -117,21 +102,39 @@ export default function ReportGeneration({ patients, userRole, userPermissions }
     }, 600);
   };
 
-  const handleConfirmArchive = () => {
+  const handleConfirmArchive = async () => {
     if (!selectedPat || !generatedContent) return;
 
-    const newReport: Report = {
-      id: `rep-${Date.now()}`,
-      patientId: selectedPatId,
-      patientNome: selectedPat.nome,
-      titulo: reportType,
-      dataGeracao: new Date().toISOString().split("T")[0],
-      conteudo: generatedContent
-    };
+    setIsArchiving(true);
+    try {
+      await createReport({
+        patientId: selectedPatId,
+        tipo: reportType,
+        titulo: reportType,
+        conteudo: generatedContent,
+        dataGeracao: new Date().toISOString().split("T")[0],
+      });
+      setConfirmArchiveOpen(false);
+      toast.success("Documento clínico salvo com sucesso no arquivo do paciente.");
+    } catch (err: any) {
+      toast.error(err.message || "Falha ao arquivar o laudo. Tente novamente.");
+    } finally {
+      setIsArchiving(false);
+    }
+  };
 
-    setReportsArchive([newReport, ...reportsArchive]);
-    setConfirmArchiveOpen(false);
-    toast.success("Documento clínico salvo com sucesso no arquivo do paciente.");
+  const handleConfirmDelete = async () => {
+    if (!reportPendingDelete) return;
+    setIsDeleting(true);
+    try {
+      await deleteReport(reportPendingDelete);
+      toast.success("Laudo removido do arquivo.");
+    } catch (err: any) {
+      toast.error(err.message || "Falha ao remover o laudo.");
+    } finally {
+      setIsDeleting(false);
+      setReportPendingDelete(null);
+    }
   };
 
   const handlePrint = () => {
@@ -367,26 +370,52 @@ export default function ReportGeneration({ patients, userRole, userPermissions }
           <div className="bg-white border border-slate-100 p-5 sm:p-6 rounded-3xl shadow-sm space-y-4">
             <h3 className="font-display font-black text-xs text-slate-400 uppercase tracking-wider">Laudos Anteriores Salvos</h3>
 
-            <div className="space-y-2">
-              {reportsArchive.map((rep) => (
-                <button
-                  key={rep.id}
-                  type="button"
-                  onClick={() => setGeneratedContent(rep.conteudo)}
-                  className="w-full p-3 bg-slate-50/70 hover:bg-blue-50/30 border border-slate-100 rounded-2xl transition text-left cursor-pointer flex justify-between items-center gap-3"
-                >
-                  <div className="min-w-0">
-                    <p className="text-xs font-bold text-slate-800 truncate">{rep.titulo}</p>
-                    <p className="text-[10px] text-slate-500 mt-1 font-semibold truncate">Paciente: {rep.patientNome}</p>
-                    <span className="text-[9px] font-mono font-bold text-slate-400 mt-1 block">Compilado: {rep.dataGeracao}</span>
-                  </div>
-                  <FileText className="h-5 w-5 text-slate-400 shrink-0" />
-                </button>
-              ))}
-              {reportsArchive.length === 0 && (
-                <p className="text-[11px] text-slate-400 text-center py-4">Nenhum laudo arquivado ainda.</p>
-              )}
-            </div>
+            {archiveLoading && (
+              <p className="text-[11px] text-slate-400 text-center py-4">Carregando laudos arquivados...</p>
+            )}
+            {archiveError && (
+              <p className="text-[11px] text-red-600 font-bold text-center py-2">{archiveError}</p>
+            )}
+
+            {!archiveLoading && (
+              <div className="space-y-2 max-h-[420px] overflow-y-auto pr-1">
+                {reportsArchive.map((rep) => {
+                  const patientNome = patients.find(p => p.id === rep.patientId)?.nome || "Paciente removido";
+                  return (
+                    <div
+                      key={rep.id}
+                      className="w-full p-3 bg-slate-50/70 hover:bg-blue-50/30 border border-slate-100 rounded-2xl transition flex justify-between items-center gap-2"
+                    >
+                      <button
+                        type="button"
+                        onClick={() => setGeneratedContent(rep.conteudo)}
+                        className="min-w-0 flex-1 text-left cursor-pointer"
+                      >
+                        <p className="text-xs font-bold text-slate-800 truncate">{rep.titulo}</p>
+                        <p className="text-[10px] text-slate-500 mt-1 font-semibold truncate">Paciente: {patientNome}</p>
+                        <span className="text-[9px] font-mono font-bold text-slate-400 mt-1 block">Compilado: {rep.dataGeracao}</span>
+                      </button>
+                      <div className="flex items-center gap-1 shrink-0">
+                        {canCreate && (
+                          <button
+                            type="button"
+                            onClick={() => setReportPendingDelete(rep.id)}
+                            aria-label="Remover laudo"
+                            className="p-1.5 rounded-lg text-slate-300 hover:text-red-500 hover:bg-red-50 transition cursor-pointer"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </button>
+                        )}
+                        <FileText className="h-5 w-5 text-slate-400" />
+                      </div>
+                    </div>
+                  );
+                })}
+                {reportsArchive.length === 0 && (
+                  <p className="text-[11px] text-slate-400 text-center py-4">Nenhum laudo arquivado ainda.</p>
+                )}
+              </div>
+            )}
           </div>
         </div>
 
@@ -403,7 +432,7 @@ export default function ReportGeneration({ patients, userRole, userPermissions }
                   <p className="text-[10px] text-slate-400 font-mono tracking-widest uppercase">Papel Timbrado Oficial de Prontuário</p>
                 </div>
                 {generatedContent && (
-                  <div className="flex gap-2">
+                  <div className="flex flex-wrap gap-2">
                     <button
                       onClick={handlePrint}
                       className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-black transition flex items-center gap-1.5 cursor-pointer border border-slate-200/50"
@@ -413,9 +442,10 @@ export default function ReportGeneration({ patients, userRole, userPermissions }
                     {canCreate && (
                       <button
                         onClick={() => setConfirmArchiveOpen(true)}
-                        className="px-4 py-2 bg-slate-950 hover:bg-[#d43f72] text-white rounded-lg text-xs font-black transition flex items-center gap-1.5 cursor-pointer shadow-md shadow-slate-950/10"
+                        disabled={isArchiving}
+                        className="px-4 py-2 bg-slate-950 hover:bg-[#d43f72] text-white rounded-lg text-xs font-black transition flex items-center gap-1.5 cursor-pointer shadow-md shadow-slate-950/10 disabled:opacity-50 disabled:cursor-not-allowed"
                       >
-                        <Save className="h-4 w-4" /> Arquivar
+                        {isArchiving ? <RefreshCw className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />} Arquivar
                       </button>
                     )}
                   </div>
@@ -465,6 +495,19 @@ export default function ReportGeneration({ patients, userRole, userPermissions }
         confirmLabel="Arquivar"
         cancelLabel="Cancelar"
         variant="primary"
+        loading={isArchiving}
+      />
+
+      <ConfirmModal
+        isOpen={!!reportPendingDelete}
+        onClose={() => setReportPendingDelete(null)}
+        onConfirm={handleConfirmDelete}
+        title="Remover laudo arquivado?"
+        message="Esta ação remove o documento do histórico do paciente permanentemente."
+        confirmLabel="Remover"
+        cancelLabel="Cancelar"
+        variant="danger"
+        loading={isDeleting}
       />
     </div>
   );
