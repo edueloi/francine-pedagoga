@@ -52,6 +52,8 @@ export default function FormsModule({ patients, userRole, userPermissions }: For
   const [submitting, setSubmitting] = useState(false);
 
   const [deleteTarget, setDeleteTarget] = useState<Form | undefined>(undefined);
+  const [shareForm, setShareForm] = useState<Form | undefined>(undefined);
+  const [sharePatientId, setSharePatientId] = useState<string>("");
 
   const handleCreateNew = () => {
     setEditingForm(undefined);
@@ -99,15 +101,26 @@ export default function FormsModule({ patients, userRole, userPermissions }: For
     }
   };
 
-  const handleShare = async (form: Form) => {
-    if (!form.shareToken) {
+  const handleOpenShare = (form: Form) => {
+    setShareForm(form);
+    setSharePatientId("");
+  };
+
+  const handleCopyShareLink = async () => {
+    if (!shareForm?.shareToken) {
       toast.error("Este formulário ainda não possui um link público. Salve-o novamente para gerar um.");
       return;
     }
-    const url = `${window.location.origin}/f/${form.shareToken}`;
+    const patientQuery = sharePatientId ? `?patientId=${encodeURIComponent(sharePatientId)}` : "";
+    const url = `${window.location.origin}/f/${shareForm.shareToken}${patientQuery}`;
     try {
       await navigator.clipboard.writeText(url);
-      toast.success("Link público copiado para a área de transferência!");
+      setShareForm(undefined);
+      toast.success(
+        sharePatientId
+          ? "Link copiado e vinculado ao paciente. A resposta entrará no prontuário e nas evoluções."
+          : "Link neutro copiado. Você poderá identificar a pessoa pelas respostas do formulário."
+      );
     } catch {
       toast.error("Não foi possível copiar o link automaticamente. Copie manualmente: " + url);
     }
@@ -183,7 +196,7 @@ export default function FormsModule({ patients, userRole, userPermissions }: For
             <Button size="xs" variant="outline" leftIcon={<Eye size={14} />} onClick={() => handleOpenResponses(row)}>
               Respostas
             </Button>
-            <Button size="xs" variant="soft" leftIcon={<Share2 size={14} />} title="Copiar link para a família ou escola responder sem login" onClick={() => handleShare(row)}>
+            <Button size="xs" variant="soft" leftIcon={<Share2 size={14} />} title="Enviar link para a família ou escola responder sem login" onClick={() => handleOpenShare(row)}>
               Enviar link
             </Button>
             {canCreate && (
@@ -321,6 +334,46 @@ export default function FormsModule({ patients, userRole, userPermissions }: For
         message={`Tem certeza que deseja excluir "${deleteTarget?.title}"? As respostas associadas também serão removidas.`}
         confirmLabel="Excluir"
       />
+
+      {/* Share form link, optionally tied to a patient so public answers enter the right chart. */}
+      <Modal
+        isOpen={!!shareForm}
+        onClose={() => setShareForm(undefined)}
+        title="Enviar formulário"
+        subtitle={shareForm?.title}
+        size="sm"
+        footer={
+          <ModalFooter>
+            <Button variant="outline" onClick={() => setShareForm(undefined)}>
+              Cancelar
+            </Button>
+            <Button variant="primary" leftIcon={<Share2 size={16} />} onClick={handleCopyShareLink}>
+              Copiar link
+            </Button>
+          </ModalFooter>
+        }
+      >
+        <div className="space-y-5">
+          <div className="rounded-2xl border border-blue-100 bg-blue-50/50 p-4 text-sm leading-relaxed text-slate-600">
+            Escolha um paciente para que a resposta recebida pelo link fique automaticamente anexada ao prontuário e às evoluções. Se deixar em branco, o link continua neutro e pode ser usado por qualquer pessoa.
+          </div>
+          <div>
+            <label className="ds-label mb-1.5 block">Vincular a um paciente (opcional)</label>
+            <Combobox
+              label=""
+              placeholder="Link neutro — selecionar paciente..."
+              value={sharePatientId}
+              onChange={(val) => setSharePatientId(val as string)}
+              options={patients.map((p) => ({ id: p.id, label: p.nome }))}
+            />
+          </div>
+          {sharePatientId && (
+            <p className="text-xs font-semibold text-emerald-700">
+              As respostas deste link serão registradas para {patients.find((p) => p.id === sharePatientId)?.nome || "o paciente selecionado"}.
+            </p>
+          )}
+        </div>
+      </Modal>
 
       {/* Fill-out modal */}
       <Modal

@@ -284,6 +284,29 @@ async function storeFormResponse(formId: string, patientId: any, answerMap: Reco
   );
 
   const [rows]: any = await pool.query("SELECT * FROM form_responses WHERE id = ?", [result.insertId]);
+
+  // Quando o link foi gerado para um paciente específico, a resposta também entra
+  // na linha do tempo do prontuário. Assim a equipe encontra o registro sem precisar
+  // procurar manualmente na tela geral de Formulários.
+  if (patientId) {
+    try {
+      await pool.query(
+        `INSERT INTO timeline_items (patient_id, data, tipo, titulo, descricao, profissional)
+         VALUES (?, NOW(), 'Avaliação', ?, ?, ?)`,
+        [
+          patientId,
+          `Formulário respondido: ${form.title}`,
+          "Uma resposta foi recebida e está vinculada a este paciente. Consulte os detalhes na área de Formulários.",
+          professionalName ?? null,
+        ]
+      );
+    } catch (err: any) {
+      // The response itself is already safely stored; timeline availability must not
+      // prevent the family from successfully submitting a form.
+      console.error("[Forms] Falha ao registrar resposta na linha do tempo:", err.message);
+    }
+  }
+
   // O registro de monitoramento é descritivo, não uma escala com resultado.
   // Portanto, não enviamos por e-mail uma "pontuação" que poderia ser interpretada incorretamente.
   if (form.category !== "Acompanhamento clínico") {
