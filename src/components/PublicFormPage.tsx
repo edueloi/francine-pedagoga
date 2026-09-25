@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { useParams, useSearchParams } from "react-router-dom";
-import { Loader2, Send, CheckCircle2, AlertTriangle, Heart, MapPin } from "lucide-react";
+import { Loader2, Send, CheckCircle2, AlertTriangle, Heart, MapPin, BarChart3, Clock3, HeartPulse } from "lucide-react";
 import { PublicForm, FormQuestion } from "../types";
 import { publicFormFromApi } from "../lib/formMappers";
 import { useDocumentTitle } from "../hooks/useDocumentTitle";
@@ -166,6 +166,7 @@ export default function PublicFormPage() {
 
   const theme = useMemo(() => ({ ...DEFAULT_THEME, ...(form?.theme || {}) }), [form]);
   const clinicName = clinicInfo?.name || FALLBACK_CLINIC_NAME;
+  const isMonitoringForm = form?.title === "Registro de Monitoramento Comportamental";
 
   const handleAnswerChange = (questionId: string, value: any) => {
     setAnswers((prev) => ({ ...prev, [questionId]: value }));
@@ -326,11 +327,19 @@ export default function PublicFormPage() {
           </div>
         ) : (
           <div
-            className="w-full h-28 sm:h-36 relative"
+            className="w-full h-28 sm:h-36 relative overflow-hidden"
             style={{
               background: `linear-gradient(135deg, ${theme.primaryColor} 0%, ${theme.primaryColor}cc 100%)`,
             }}
-          />
+          >
+            {isMonitoringForm && (
+              <>
+                <div className="absolute -right-5 -top-10 h-36 w-36 rounded-full border-[18px] border-white/10" />
+                <div className="absolute right-20 top-5 h-3 w-3 rounded-full bg-amber-200/90" />
+                <div className="absolute right-32 bottom-7 h-2 w-2 rounded-full bg-white/70" />
+              </>
+            )}
+          </div>
         )}
         {/* Curved SVG divider — replaces the hard rectangular cut-off edge */}
         <svg
@@ -356,6 +365,22 @@ export default function PublicFormPage() {
             <p className="text-sm sm:text-base text-slate-500 leading-relaxed mt-3 whitespace-pre-line">
               {form.description}
             </p>
+          )}
+          {isMonitoringForm && (
+            <div className="mt-5 grid grid-cols-3 gap-2 border-t border-slate-100 pt-4">
+              <div className="rounded-2xl bg-blue-50 px-2 py-3 text-center text-[#2563eb]">
+                <BarChart3 className="mx-auto mb-1" size={18} />
+                <span className="block text-[9px] font-black uppercase tracking-wide">Frequência</span>
+              </div>
+              <div className="rounded-2xl bg-amber-50 px-2 py-3 text-center text-amber-700">
+                <Clock3 className="mx-auto mb-1" size={18} />
+                <span className="block text-[9px] font-black uppercase tracking-wide">Duração</span>
+              </div>
+              <div className="rounded-2xl bg-violet-50 px-2 py-3 text-center text-violet-700">
+                <HeartPulse className="mx-auto mb-1" size={18} />
+                <span className="block text-[9px] font-black uppercase tracking-wide">Intensidade</span>
+              </div>
+            </div>
           )}
         </div>
 

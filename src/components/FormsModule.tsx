@@ -183,8 +183,8 @@ export default function FormsModule({ patients, userRole, userPermissions }: For
             <Button size="xs" variant="outline" leftIcon={<Eye size={14} />} onClick={() => handleOpenResponses(row)}>
               Respostas
             </Button>
-            <Button size="xs" variant="soft" leftIcon={<Share2 size={14} />} title="Copiar link público para responder sem login" onClick={() => handleShare(row)}>
-              Compartilhar
+            <Button size="xs" variant="soft" leftIcon={<Share2 size={14} />} title="Copiar link para a família ou escola responder sem login" onClick={() => handleShare(row)}>
+              Enviar link
             </Button>
             {canCreate && (
               <Button size="xs" variant="ghost" onClick={() => handleEdit(row)}>

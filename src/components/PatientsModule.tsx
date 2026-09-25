@@ -158,7 +158,7 @@ export default function PatientsModule({
         try {
           await saveAnamnese({
             patientId: savedPatient.id,
-            queixaPrincipal: "Aguardando preenchimento.",
+            queixaPrincipal: "",
             historiaGestacional: "",
             marcosDesenvolvimento: "",
             linguagem: "",
@@ -374,8 +374,8 @@ export default function PatientsModule({
         patientId: editingAnamnese.patientId,
         data: new Date().toISOString().split("T")[0],
         tipo: "Avaliação",
-        titulo: "Anamnese Atualizada",
-        descricao: "Histórico clínico e marcos do desenvolvimento foram revisados e atualizados pela terapeuta.",
+        titulo: "Anamnese Psicopedagógica Integrativa atualizada",
+        descricao: "A anamnese foi preenchida ou revisada pela equipe. Consulte as respostas completas na aba Anamnese deste prontuário.",
         profissional: "Francine Maria Tersi"
       });
       toast.success("Anamnese atualizada com sucesso!");
@@ -1028,7 +1028,7 @@ export default function PatientsModule({
                 <div className="space-y-6 animate-fade-in">
                   <div className="flex gap-4 border-b border-slate-50 pb-2 items-center justify-between">
                     <h4 className="font-display font-black text-slate-800 text-xs uppercase tracking-wider">
-                      Anamnese Clínico-Pedagógica
+                      Anamnese Psicopedagógica Integrativa
                     </h4>
                     {canEdit && (
                       <div className="flex items-center gap-2">
@@ -1044,7 +1044,7 @@ export default function PatientsModule({
                           ) : (
                             <Share2 className="h-3.5 w-3.5" />
                           )}
-                          Enviar para os pais preencherem
+                          Enviar anamnese à família
                         </button>
                         <button
                           onClick={() => {
@@ -1054,7 +1054,7 @@ export default function PatientsModule({
                               // fallback structure
                               setEditingAnamnese({
                                 patientId: selectedPat.id,
-                                queixaPrincipal: "Aguardando preenchimento",
+                                queixaPrincipal: "",
                                 historiaGestacional: "",
                                 marcosDesenvolvimento: "",
                                 linguagem: "",

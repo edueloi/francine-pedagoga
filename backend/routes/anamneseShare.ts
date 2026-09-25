@@ -139,10 +139,10 @@ publicAnamneseRouter.post("/:token", publicSubmitRateLimiter, async (req, res) =
 
     await pool.query(
       `INSERT INTO timeline_items (patient_id, data, tipo, titulo, descricao, profissional)
-       VALUES (?, NOW(), 'Avaliação', 'Anamnese preenchida pela família', ?, ?)`,
+       VALUES (?, NOW(), 'Avaliação', 'Anamnese Psicopedagógica Integrativa preenchida pela família', ?, ?)`,
       [
         patient.id,
-        "A família preencheu ou atualizou a anamnese diretamente pelo link de acesso enviado pela clínica.",
+        "A família enviou ou atualizou a anamnese pelo link seguro. Consulte as respostas completas na aba Anamnese deste prontuário.",
         null,
       ]
     );
